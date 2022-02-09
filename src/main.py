@@ -1,9 +1,11 @@
 import chess
+from rng import x
 
 def _main(my_color=chess.WHITE):
 	board = chess.BaseBoard()
 	board.forget_pieces(lambda square: board.color_at(square) != my_color)
-	global _opponent = chess.BaseBoard()
+	global _opponent
+	_opponent = chess.BaseBoard()
 	_opponent.forget_pieces(lambda square: board.color_at(square) == my_color)
 	board.remove_piece_at(chess.D2)
 	board.remove_piece_at(chess.E2)
@@ -37,7 +39,7 @@ def _query_opponent(squares):
 	global _opponent
 	new_pieces = dict()
 	for square in squares:
-		new_piece = _board.piece_at(square)
+		new_piece = _opponent.piece_at(square)
 		if new_piece is not None:
 			new_pieces[square] = new_piece
 	return new_pieces
