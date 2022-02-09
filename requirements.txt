@@ -1,0 +1,2 @@
+cryptography<39,>=2.8
+chess<2,>=1
