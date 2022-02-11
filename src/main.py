@@ -25,11 +25,11 @@ def _main(my_color=chess.WHITE):
 def _calc_visibility(board, pov_color, vision_limit=99, self_vision=False):
 	visibility = chess.SquareSet(chess.BB_EMPTY)
 	for square in chess.SQUARES:
-		if self_vision:
-			if board.color_at(square) == pov_color:
-				# Exit early: we can see squares our own pieces are on
+		if board.color_at(square) == pov_color:
+			# Exit early: we can trivially see squares our own pieces are on
+			if self_vision:
 				visibility.add(square)
-				continue
+			continue
 		for spotter_square in board.attackers(pov_color, square):
 			# For each of our pieces that might be attacking this square...
 			spotter = board.piece_at(spotter_square)
