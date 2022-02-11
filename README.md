@@ -1,12 +1,14 @@
 An implementation of [mental poker](https://people.csail.mit.edu/rivest/pubs/SRA81.pdf) for [dark chess](https://www.chessvariants.com/incinf.dir/darkness.html)
 
-Can two players play mental chess such that:
+Can two players play the following variant of [correspondence chess](https://en.wikipedia.org/wiki/Correspondence_chess?oldid=5673559):
 
-a. Each player can only see squares that their own pieces are attacking
+a. Each player can only "see" squares that their own pieces are attacking
 
-b. A player who "cheats" and violates (a) by peeking cannot plausibly "get away with it"
+b. A player who cheats and violates (a) by "peeking" cannot plausibly get away with it: he will at least be exposed by the end of the game
 
-c. There is no [3rd-party "referee"](http://www.gamerz.net/pbmserv/darkchess.html) available to keep track of each player's moves
+c. Neither player trusts any ["referee"](http://www.gamerz.net/pbmserv/darkchess.html) to administer the whole boardstate and keep it confidential
+
+I believe this is possible, and I will implement an example program to demonstrate it.
 
 ```shell
 sudo apt install python3-venv # might be needed
