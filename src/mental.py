@@ -34,9 +34,12 @@ def commit_seed_bob(randval=None):
 if __name__ == '__main__':
 	import time
 	A = commit_seed_alice()
-	B = commit_seed_bob(); next(B)
-	print("ALICE PUBLISHES H(a):", (h_a:=next(A)).hex())
-	print("BOB PUBLISHES b:", (b:=B.send(h_a)).hex())
+	B = commit_seed_bob()
+	h_a = next(A)
+	print("ALICE PUBLISHES H(a):", h_a.hex())
+	next(B)
+	b = B.send(h_a)
+	print("BOB PUBLISHES b:", b.hex())
 	s = A.send(b)
 	time.sleep(1)
 	print("LATER, ALICE PUBLISHES s:", s.hex())
