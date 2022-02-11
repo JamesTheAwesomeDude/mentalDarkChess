@@ -4,5 +4,7 @@ python3 -m venv env/
 # bash
 . env/bin/activate
 pip install -r requirements.txt
-python src/main.py
+cd src/
+chesscolor=black python main.py &
+chesscolor=white python main.py
 ```
