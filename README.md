@@ -6,7 +6,7 @@ a. Each player can only "see" squares that their own pieces are attacking
 
 b. A player who cheats and violates (a) by "peeking" cannot plausibly get away with it: he will at least be exposed by the end of the game
 
-c. Neither player trusts any ["referee"](http://www.gamerz.net/pbmserv/darkchess.html) to administer the whole boardstate and keep it confidential
+c. Neither player trusts any ["referee"](http://www.gamerz.net/pbmserv/darkchess.html) to *confidentially* administer the boardstate (though a loose-lipped-but-honest referee may still be got to adjudicate outcomes, especially after the match)
 
 I believe this is possible, and I will implement an example program to demonstrate it.
 
