@@ -188,5 +188,5 @@ chess.BaseBoard.unicode_fog = _unicode_fog
 
 if __name__ == '__main__':
 	import sys, os
-	color = {"WHITE": chess.WHITE, "BLACK": chess.BLACK}[os.environ.get("chesscolor", "WHITE")]
+	color = {"white": chess.WHITE, "black": chess.BLACK}[os.environ.get("chesscolor", "white")]
 	sys.exit(_main(color))
