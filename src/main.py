@@ -33,7 +33,7 @@ def _calc_visibility(board, pov_color, vision_limit=99, self_vision=False):
 		for spotter_square in board.attackers(pov_color, square):
 			# For each of our pieces that might be attacking this square...
 			spotter = board.piece_at(spotter_square)
-			if spotter.piece_type not in chess.UNBLOCKABLE_PIECES:
+			if spotter.piece_type not in chess.UNBLOCKABLE_PIECES or vision_limit < 1:
 				# (and we are certain isn't being blocked)
 				if chess.square_distance(spotter_square, square) > vision_limit:
 					continue
