@@ -7,37 +7,62 @@ from sys import stdout
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 def _main(my_color=chess.WHITE):
-	global white_view
-	global black_view
-	white_view = chess.Board()
-	white_view.forget_pieces(lambda square: white_view.color_at(square) != chess.WHITE)
-	black_view = chess.BaseBoard()
-	black_view.forget_pieces(lambda square: black_view.color_at(square) != chess.BLACK)
+	global board
+	board = chess.Board()
+	board.forget_pieces(lambda square: board.color_at(square) != my_color)
 	# White starts out with two pieces missing for debugging
-	white_view.remove_piece_at(chess.D2)
-	white_view.remove_piece_at(chess.E2)
 	if my_color == chess.WHITE:
-		visibility = gain_vision(white_view, my_color)
-		print(white_view.unicode_fog(visibility))
-	else:
-		while True: _get_queried(black_view, chess.BLACK)
+		board.remove_piece_at(chess.D2)
+		board.remove_piece_at(chess.E2)
+	if my_color == chess.BLACK:
+		their_turn()
+	while True:
+		if my_turn():
+			return "VICTORY"
+		if their_turn():
+			return "FAT LOSS"
+
+def my_turn(board, my_color):
+	visibility = gain_vision(board, my_color)
+	print(board.unicode_fog(visibility))
+	move = chess.Move.from_uci(input("YUOR MOEV (in UCI FORMAT such as e2e4)\n> "))
+	target = board.piece_at(move.to_square)
+	assert target is None or target.color != my_color
+	board.push(move)
+	if target and target.piece_type == chess.KING:
+		return True
+	print(board.unicode_fog(visibility))
+
+def their_turn():
+	while True: _get_queried(black_view, chess.BLACK)
+
+
+def _is_visible(board, square, pov_color, vision_limit=99, self_vision=False):
+	if board.color_at(square) == pov_color:
+		# We have a square on this piece; exit early
+		return self_vision
+	for spotter_square in board.attackers(pov_color, square):
+		spotter = board.piece_at(spotter_square)
+		if spotter.piece_type not in chess.UNBLOCKABLE_PIECES or vision_limit < 1:
+			# Piece may be vision encumbered
+			if chess.square_distance(spotter_square, square) <= vision_limit:
+				# It could, in fact, see the distance
+				return True
+			else:
+				# Theoretically spotted, but outside of range
+				# skip this spotter and try the next
+				continue
+		else:
+			# Knight with vision >= 1 -- unencumbrable
+			return True
+	# All candidate spotters -- if there were any -- were disqualified
+	# Square is clearly not visible with current boardstate and vision
+	return False
 
 def _calc_visibility(board, pov_color, vision_limit=99, self_vision=False):
 	visibility = chess.SquareSet(chess.BB_EMPTY)
 	for square in chess.SQUARES:
-		if board.color_at(square) == pov_color:
-			# Exit early: we can trivially see squares our own pieces are on
-			if self_vision:
-				visibility.add(square)
-			continue
-		for spotter_square in board.attackers(pov_color, square):
-			# For each of our pieces that might be attacking this square...
-			spotter = board.piece_at(spotter_square)
-			if spotter.piece_type not in chess.UNBLOCKABLE_PIECES or vision_limit < 1:
-				# (and we are certain isn't being blocked)
-				if chess.square_distance(spotter_square, square) > vision_limit:
-					continue
-			#...count the square as visible
+		if _is_visible(board, square, pov_color, vision_limit, self_vision):
 			visibility.add(square)
 	return visibility
 
@@ -56,41 +81,25 @@ def _unpickle_squareset(list_squareset):
 
 
 def _query_opponent(squares, color):
-	logging.info("Creating context")
 	ctx = zmq.Context()
-	logging.info("Context created")
-	logging.info("Creating socket")
+	
 	socket = ctx.socket(zmq.PAIR)
-	logging.info("Socket created")
-	logging.info("Connecting to socket")
 	socket.connect('tcp://localhost:%i' % (64355 + color))
-	logging.info("Connected to socket")
-	logging.info("Sending list of seen tiles %s", str(squares))
 	socket.send_json(_pickle_squareset(squares))
-	logging.info("List of seen tiles sent")
-	logging.info("Receiving vision from seen tiles")
 	new_pieces = _unpickle_piecemap(socket.recv_json())
-	logging.info("Vision from seen tiles received %s", str(new_pieces))
 	return new_pieces
 
 
 def _get_queried(board, color):
-	logging.info("Creating context")
 	ctx = zmq.Context()
-	logging.info("Context created")
-	logging.info("Creating socket")
 	socket = ctx.socket(zmq.PAIR)
-	logging.info("Socket created")
-	logging.info("Binding to socket")
 	socket.bind('tcp://*:%i' % (64355 + color))
-	logging.info("Socket bound")
-	logging.info("Receiving list of seen tiles")
+	previous_squares = None
 	squares = chess.SquareSet(socket.recv_json())
-	logging.info("List of seen tiles received %s", str(squares))
-	visible_pieces = board.piece_map(mask=int(squares))
-	logging.info("Sending vision for seen tiles %s", str(visible_pieces))
-	socket.send_json(_pickle_piecemap(visible_pieces))
-	logging.info("Vision for seen tiles sent")
+	while squares != previous_squares:
+		visible_pieces = board.piece_map(mask=int(squares))
+		socket.send_json(_pickle_piecemap(visible_pieces))
+		squares, previous_squares = chess.SquareSet(socket.recv_json()), squares
 	return squares
 
 
@@ -107,7 +116,7 @@ def gain_vision(board, self_color, *, queryfunc=_query_opponent, runs=range(1, 8
 
 def _gain_vision(board, self_color, *, runs=range(1, 8), **kwargs):
 	for i in runs:
-		print("STARTING ROUND %i" % (i + 1))
+		print("STARTING ROUND %i" % i)
 		new_pieces = (yield _calc_visibility(board, self_color, vision_limit=i, **kwargs))
 		time.sleep(1)
 		for square, piece in new_pieces.items():
