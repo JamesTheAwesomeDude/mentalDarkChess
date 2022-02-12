@@ -98,7 +98,7 @@ def probe_opponent(board):
 	_Board = chess.BaseBoard if type(board) == chess.Board else type(board)
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
-	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number - 1 + (not board.turn)))
+	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	piece_map = dict()
 	for max_vision in range(1, 8):
 		seed = urandom(32) # TODO allow Bob to ensure randomness
@@ -131,7 +131,7 @@ def probe_opponent(board):
 def respond_to_probe(board):
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
-	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number - 1 + (not board.turn)))
+	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	queries = []
 	for _ in range(1, 8):
 		hseed, pkeys = socket.recv_serialized(_deserialize)
