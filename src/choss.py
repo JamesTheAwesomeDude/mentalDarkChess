@@ -97,14 +97,15 @@ def monkey_patch(chess):
 			return "".join(builder)
 		def __str__(self) -> str:
 			builder = []
-			for square in SQUARES_180:
+			vision = self.calc_vision()
+			for square in chess.SQUARES_180:
 				piece = self.piece_at(square)
 				if piece:
 					builder.append(piece.symbol())
 				else:
-					builder.append("." if square in self.vision else '?')
-				if BB_SQUARES[square] & BB_FILE_H:
-					if square != H1:
+					builder.append("." if square in vision else "?")
+				if chess.BB_SQUARES[square] & chess.BB_FILE_H:
+					if square != chess.H1:
 						builder.append("\n")
 				else:
 					builder.append(" ")
