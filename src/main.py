@@ -15,6 +15,7 @@ from rng import RijndaelRng
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 chess.NO_PIECE = -len(chess.PIECE_NAMES)
+chess.NO_SQUARE = len(chess.SQUARES)
 
 CHESS_PORT = 64355
 
@@ -35,34 +36,36 @@ def _main(board, color):
 
 def my_turn(board):
 	forget_player(board, not board.turn)
-	revealed = probe_opponent(board)
+	alice = probe_opponent(board)
+	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
 	print(board.unicode())
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4)\n> '))
 	dest = move.to_square
 	target_piece = board.piece_at(dest)
 	if target_piece is None:
-		notify_capture(None)
+		alice.send(chess.NO_SQUARE)
 	else:
-		if target_piece.color != board.turn:
-			raise ValueError("Can't capture your own piece")
-		notify_capture(dest)
+		if target_piece.color == board.turn:
+			raise ValueError("Can't capture your own %s piece %s@%s")
+		alice.send(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
 
 
 def their_turn(board):
 	forget_player(board, board.turn)
-	queries = respond_to_probe(board)
-	captured_square = rcv_notify_capture()
-	if captured_square is None:
+	bob = respond_to_probe(board)
+	queries = next(bob)
+	captured_square = next(bob)
+	if captured_square == chess.NO_SQUARE:
 		captured_piece = None
-		console.info("NO CAPTURE BY OPPONENT THIS TURN")
+		logging.info("NO CAPTURE BY OPPONENT THIS TURN")
 	else:
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move(captured_square, captured_square, drop=chess.NO_PIECE))
-		console.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
-	if captured_piece.piece_type == chess.KING:
+		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
+	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
 
@@ -95,7 +98,7 @@ def probe_opponent(board):
 	_Board = chess.BaseBoard if type(board) == chess.Board else type(board)
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
-	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.halfmove_clock))
+	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number - 1 + (not board.turn)))
 	piece_map = dict()
 	for max_vision in range(1, 8):
 		seed = urandom(32) # TODO allow Bob to ensure randomness
@@ -121,17 +124,20 @@ def probe_opponent(board):
 				piece_map[square] = piece
 			if piece:
 				_Board.set_piece_at(board, square, piece)
-	return piece_map
+	captured_square = yield piece_map
+	yield socket.send_serialized(captured_square, _serialize)
 
 
 def respond_to_probe(board):
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
-	socket.bind('tcp://*:%u' % (CHESS_PORT + board.halfmove_clock))
+	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number - 1 + (not board.turn)))
+	queries = []
 	for _ in range(1, 8):
 		hseed, pkeys = socket.recv_serialized(_deserialize)
 		logging.info('GOT SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
 		logging.info('GOT QUERY: %s', json.dumps(list(b64encode(pk, b'-_').decode() for pk in pkeys)))
+		queries.append((hseed, pkeys))
 		payload = []
 		for square, pk in zip(chess.SQUARES, pkeys):
 			# note: you should forget opponent pieces BEFORE running this function
@@ -140,6 +146,9 @@ def respond_to_probe(board):
 			encrypted_piece_data = pk_encrypt(pk, piece_data)
 			payload.append(encrypted_piece_data)
 		socket.send_serialized(payload, _serialize)
+	yield queries
+	captured_square = socket.recv_serialized(_deserialize)
+	yield captured_square
 
 
 def _serialize(m):
