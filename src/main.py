@@ -2,6 +2,7 @@ import chess
 import zmq
 import bencodepy
 from cryptography.hazmat.primitives.asymmetric import x25519
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import serialization as _crypto_serialization
 import logging
 import json
@@ -33,8 +34,9 @@ def _main(board, color):
 
 
 def my_turn(board):
+	forget_player(board, not board.turn)
 	revealed = probe_opponent(board)
-	logging.info("REVEALED: %s", revealed)
+	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
 	print(board.unicode())
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4)\n> '))
 	dest = move.to_square
@@ -47,7 +49,6 @@ def my_turn(board):
 		notify_capture(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
-	forget_player(board, board.turn)
 
 
 def their_turn(board):
@@ -95,6 +96,7 @@ def probe_opponent(board):
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.halfmove_clock))
+	piece_map = dict()
 	for max_vision in range(1, 8):
 		seed = urandom(32) # TODO allow Bob to ensure randomness
 		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
@@ -110,14 +112,16 @@ def probe_opponent(board):
 		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(vision)))
 		socket.send_serialized([hseed, pkeys], _serialize)
 		payload = socket.recv_serialized(_deserialize)
-		piece_map = dict()
 		for square, sk in zip(vision, keys):
 			piece_data = pk_decrypt(sk, payload[square])
-			piece = chess.Piece.fromsymbol(piece_data.decode()) if piece_data != b'\x00' else None
-			piece_map[square] = piece
+			piece = chess.Piece.from_symbol(piece_data.decode()) if piece_data != b'\x00' else None
+			if square in piece_map:
+				assert piece_map[square] == piece, "Opponent sent contradictory information"
+			else:
+				piece_map[square] = piece
 			if piece:
-				_Board.set_piece_at(square, piece)
-		logging.info('GOT VISION: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in piece_map.items()))))
+				_Board.set_piece_at(board, square, piece)
+	return piece_map
 
 
 def respond_to_probe(board):
@@ -167,8 +171,30 @@ def gen_real_keypair(m=32):
 	pk = publickey(sk)
 	return sk, pk
 
+def _publickey(sk):
+	return sk.public_key().public_bytes(encoding=_crypto_serialization.Encoding.Raw, format=_crypto_serialization.PublicFormat.Raw)
+
 def publickey(sk):
-	return x25519.X25519PrivateKey.from_private_bytes(sk).public_key().public_bytes(encoding=_crypto_serialization.Encoding.Raw, format=_crypto_serialization.PublicFormat.Raw)
+	return _publickey(x25519.X25519PrivateKey.from_private_bytes(sk))
+
+def pk_encrypt(pk, data, aad=None):
+	_sk = x25519.X25519PrivateKey.generate()
+	ephemeral_pk = _publickey(_sk)
+	_pk = x25519.X25519PublicKey.from_public_bytes(pk)
+	key = _sk.exchange(_pk)
+	nonce = urandom(12)
+	cipher = ChaCha20Poly1305(key)
+	ciphertext = cipher.encrypt(nonce, data, aad)
+	return ephemeral_pk + ciphertext + nonce
+
+
+def pk_decrypt(sk, ciphertext, aad=None):
+	ephemeral_pk, ciphertext, nonce = ciphertext[:32], ciphertext[32:-12], ciphertext[-12:]
+	_sk = x25519.X25519PrivateKey.from_private_bytes(sk)
+	_pk = x25519.X25519PublicKey.from_public_bytes(ephemeral_pk)
+	key = _sk.exchange(_pk)
+	cipher = ChaCha20Poly1305(key)
+	return cipher.decrypt(nonce, ciphertext, aad)
 
 
 def forget_player(board, color):
@@ -182,5 +208,8 @@ def forget_player(board, color):
 if __name__ == '__main__':
 	import os, sys
 	board = chess.Board()
+	if "lol" in os.environ:
+		board.remove_piece_at(chess.D2)
+		board.remove_piece_at(chess.E2)
 	color = {'white': chess.WHITE, 'black': chess.BLACK}[os.environ.get('chesscolor', 'white')]
 	_main(board, color)
