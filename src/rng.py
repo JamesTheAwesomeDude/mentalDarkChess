@@ -1,6 +1,10 @@
 from random import Random
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms as _cipher_algorithms, modes as _cipher_modes
-from resource import getpagesize as _getpagesize
+try:
+	from resource import getpagesize as _getpagesize
+except ImportError:
+	def _getpagesize():
+		return 4096
 from functools import reduce as _reduce
 from itertools import islice as _islice, repeat as _repeat
 from types import SimpleNamespace as _SimpleNamespace

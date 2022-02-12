@@ -19,14 +19,30 @@ I believe this is possible, and I will implement an example program to demonstra
 # Usage
 
 ```shell
+# Linux
 sudo apt install python3-venv # might be needed
 python3 -m venv env/
-# bash
 . env/bin/activate
 pip install -r requirements.txt
-cd src/
-chesscolor=black python main.py &
+
+cd src
 chesscolor=white python main.py
+## DO THE SAME IN ANOTHER WINDOW: ##
+. env/bin/activate
+cd src
+chesscolor=black python main.py
+```
+
+```cmd
+REM windows
+
+cd src
+set chesscolor=white
+python main.py
+REM DO THE SAME IN ANOTHER WINDOW-
+cd src
+set chesscolor=black
+python main.py
 ```
 
 Also pass env `lol=555` if you want White to start out with the D and E pawns removed
