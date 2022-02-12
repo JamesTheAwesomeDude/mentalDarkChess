@@ -61,6 +61,7 @@ def their_turn(board):
 	if captured_square == chess.NO_SQUARE:
 		captured_piece = None
 		logging.info("NO CAPTURE BY OPPONENT THIS TURN")
+		board.push(chess.Move.null())
 	else:
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move(captured_square, captured_square, drop=chess.NO_PIECE))
