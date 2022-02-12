@@ -1,21 +1,15 @@
 import chess
+import choss
+choss.monkey_patch(chess)
+from criptogrvfy import h, gen_fake_pubkeys, gen_real_keypair, publickey, pk_encrypt, pk_decrypt
 import zmq
 import bencodepy
-from cryptography.hazmat.primitives.asymmetric import x25519
-from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
-from cryptography.hazmat.primitives import serialization as _crypto_serialization
 import logging
 import json
-import hashlib
-import ed25519
 from sys import stdout
 from os import urandom
 from base64 import b64encode, b64decode
-from rng import RijndaelRng
 logging.basicConfig(level=logging.INFO, stream=stdout)
-
-chess.NO_PIECE = -len(chess.PIECE_NAMES)
-chess.NO_SQUARE = len(chess.SQUARES)
 
 CHESS_PORT = 64355
 
@@ -35,7 +29,7 @@ def _main(board, color):
 
 
 def my_turn(board):
-	forget_player(board, not board.turn)
+	board.forget_player(not board.turn)
 	alice = probe_opponent(board)
 	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
@@ -54,7 +48,7 @@ def my_turn(board):
 
 
 def their_turn(board):
-	forget_player(board, board.turn)
+	board.forget_player(board.turn)
 	bob = respond_to_probe(board)
 	queries = next(bob)
 	captured_square = next(bob)
@@ -64,39 +58,13 @@ def their_turn(board):
 		board.push(chess.Move.null())
 	else:
 		captured_piece = board.piece_at(captured_square)
-		board.push(chess.Move(captured_square, captured_square, drop=chess.NO_PIECE))
+		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
 
-def check_vision(board, square, max_vision=99, self_vision=False):
-	piece = board.piece_at(square)
-	if piece and piece.color == board.turn:
-		return self_vision
-	for attacker_square in board.attackers(board.turn, square):
-		attacker = board.piece_at(attacker_square)
-		if attacker.piece_type != chess.KNIGHT or max_vision < 1:
-			if chess.square_distance(attacker_square, square) <= max_vision:
-				return True
-		else:
-			return True
-	return False
-
-
-def calc_vision(board, max_vision=99, self_vision=False):
-	vision = chess.SquareSet()
-	for square in chess.SQUARES:
-		if square in vision:
-			continue
-		if check_vision(board, square, max_vision, self_vision):
-			vision.add(square)
-	return vision
-
-
-
 def probe_opponent(board):
-	_Board = chess.BaseBoard if type(board) == chess.Board else type(board)
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
@@ -106,14 +74,14 @@ def probe_opponent(board):
 		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
 		hseed = h(seed)
 		logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
-		vision = calc_vision(board, max_vision)
+		vision = chess.DarkBoard.calc_vision(board, max_vision=max_vision)
 		pkeys = gen_fake_pubkeys(seed)
 		keys = []
 		for square in vision:
 			sk, pk = gen_real_keypair()
 			keys.append(sk)
 			pkeys[square] = pk
-		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(vision)))
+		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(chess.SQUARE_NAMES[square] for square in vision)))
 		socket.send_serialized([hseed, pkeys], _serialize)
 		payload = socket.recv_serialized(_deserialize)
 		for square, sk in zip(vision, keys):
@@ -124,7 +92,7 @@ def probe_opponent(board):
 			else:
 				piece_map[square] = piece
 			if piece:
-				_Board.set_piece_at(board, square, piece)
+				board.set_piece_at(square, piece, gently=True)
 	captured_square = yield piece_map
 	yield socket.send_serialized(captured_square, _serialize)
 
@@ -159,67 +127,11 @@ def _deserialize(b):
 	return bencodepy.decode(bytes().join(b))
 
 
-def h(m):
-	return hashlib.sha256(m).digest()
-
-def gen_fake_pubkeys(seed, m=32, n=64):
-	key = h(seed)
-	r = RijndaelRng(seed)
-	payload = []
-	while len(payload) < n:
-		pk = urandom(m)
-		try:
-			ed25519.decodepoint(pk)
-		except ValueError:
-			pass
-		else:
-			payload.append(pk)
-	return payload
-
-def gen_real_keypair(m=32):
-	sk = urandom(m)
-	pk = publickey(sk)
-	return sk, pk
-
-def _publickey(sk):
-	return sk.public_key().public_bytes(encoding=_crypto_serialization.Encoding.Raw, format=_crypto_serialization.PublicFormat.Raw)
-
-def publickey(sk):
-	return _publickey(x25519.X25519PrivateKey.from_private_bytes(sk))
-
-def pk_encrypt(pk, data, aad=None):
-	_sk = x25519.X25519PrivateKey.generate()
-	ephemeral_pk = _publickey(_sk)
-	_pk = x25519.X25519PublicKey.from_public_bytes(pk)
-	key = _sk.exchange(_pk)
-	nonce = urandom(12)
-	cipher = ChaCha20Poly1305(key)
-	ciphertext = cipher.encrypt(nonce, data, aad)
-	return ephemeral_pk + ciphertext + nonce
-
-
-def pk_decrypt(sk, ciphertext, aad=None):
-	ephemeral_pk, ciphertext, nonce = ciphertext[:32], ciphertext[32:-12], ciphertext[-12:]
-	_sk = x25519.X25519PrivateKey.from_private_bytes(sk)
-	_pk = x25519.X25519PublicKey.from_public_bytes(ephemeral_pk)
-	key = _sk.exchange(_pk)
-	cipher = ChaCha20Poly1305(key)
-	return cipher.decrypt(nonce, ciphertext, aad)
-
-
-def forget_player(board, color):
-	_Board = chess.BaseBoard if type(board) == chess.Board else type(board)
-	for square in chess.SQUARES:
-		piece = board.piece_at(square)
-		if piece and piece.color == color:
-			_Board.remove_piece_at(board, square)
-
-
 if __name__ == '__main__':
 	import os, sys
-	board = chess.Board()
+	board = chess.DarkBoard()
 	if "lol" in os.environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
-	color = {'white': chess.WHITE, 'black': chess.BLACK}[os.environ.get('chesscolor', 'white')]
+	color = chess.COLOR_NAMES.index(os.environ.get('chesscolor', 'white'))
 	_main(board, color)
