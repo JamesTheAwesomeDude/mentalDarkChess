@@ -6,12 +6,23 @@ import zmq
 import bencodepy
 import logging
 import json
+import platform
 from sys import stdout
 from os import urandom
 from base64 import b64encode, b64decode
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 CHESS_PORT = 64355
+
+def show_board(board):
+	if platform.system() == 'Linux':
+		# I'M NOT TRYING TO BE PASSIVE-AGGRESSIVE
+		# OR A LINUX SUPREMACIST
+		# THIS IS JUST A QUICK FIX SO MY FRIEND
+		# CAN DEMO IT
+		print(board.unicode())
+	else:
+		print(str(board))
 
 def _main(board, color):
 	winner = None
@@ -33,7 +44,7 @@ def my_turn(board):
 	alice = probe_opponent(board)
 	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
-	print(board.unicode())
+	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4)\n> '))
 	dest = move.to_square
 	target_piece = board.piece_at(dest)
