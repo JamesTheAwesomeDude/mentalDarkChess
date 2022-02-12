@@ -95,19 +95,18 @@ def monkey_patch(chess):
 				builder.append("\n")
 				builder.append("   a b c d e f g h")
 			return "".join(builder)
-	def __str__(self) -> str:
-		builder = []
-		for square in SQUARES_180:
-			piece = self.piece_at(square)
-			if piece:
-				builder.append(piece.symbol())
-			else:
-				builder.append("." if square in self.vision else '?')
-			if BB_SQUARES[square] & BB_FILE_H:
-				if square != H1:
-					builder.append("\n")
-			else:
-				builder.append(" ")
-
-		return "".join(builder)
+		def __str__(self) -> str:
+			builder = []
+			for square in SQUARES_180:
+				piece = self.piece_at(square)
+				if piece:
+					builder.append(piece.symbol())
+				else:
+					builder.append("." if square in self.vision else '?')
+				if BB_SQUARES[square] & BB_FILE_H:
+					if square != H1:
+						builder.append("\n")
+				else:
+					builder.append(" ")
+			return "".join(builder)
 	chess.DarkBoard = DarkBoard
