@@ -8,18 +8,14 @@ import logging
 import json
 import platform
 from sys import stdout
-from os import urandom
+from os import urandom, environ
 from base64 import b64encode, b64decode
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 CHESS_PORT = 64355
 
 def show_board(board):
-	if platform.system() == 'Linux':
-		# I'M NOT TRYING TO BE PASSIVE-AGGRESSIVE
-		# OR A LINUX SUPREMACIST
-		# THIS IS JUST A QUICK FIX SO MY FRIEND
-		# CAN DEMO IT
+	if 'UTF-' in os.environ.get('LANG', 'C'):
 		print(board.unicode())
 	else:
 		print(str(board))
