@@ -45,7 +45,7 @@ def my_turn(board):
 	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
 	show_board(board)
-	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,e7e5)\n> '))
+	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
 	dest = move.to_square
 	target_piece = board.piece_at(dest)
 	if target_piece is None:
