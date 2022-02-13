@@ -69,13 +69,21 @@ def monkey_patch(chess):
 					# We know there's an allied piece here,
 					# but may or may not want to account it
 					vision.add(square)
-				for dest in filter(lambda square: square not in vision, self.attacks(square)):
+				for dest in (self.attacks(square) | self._bonus_vision(square)):
 					# For each maybe-unseen square our piece is attacking:
 					# if it's closer than the vision limit,
 					if max_vision >= chess.square_distance(square, dest) or (piece.piece_type in chess.UNBLOCKABLE_PIECES and max_vision > 0):
 						# then we do, in fact, see it.
 						vision.add(dest)
 			return vision
+		def _bonus_vision(self, square):
+			piece = self.piece_at(square)
+			if piece is None:
+				return chess.SquareSet(chess.BB_EMPTY)
+			bonus_vision = chess.SquareSet()
+			if piece.piece_type == chess.PAWN:
+				bonus_vision.add(chess.square(chess.square_file(square), chess.square_rank(square) + [-1, 1][piece.color]))
+			return bonus_vision
 		def __repr__(self):
 			return f"{type(self).__name__}({self.board_fen()!r}, pov={self.pov})"
 		def unicode(self, *,
