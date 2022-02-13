@@ -57,4 +57,19 @@ Also pass env `lol=555` if you want White to start out with the D and E pawns re
 
 # Development
 
-TODO
+Generate a release with the following scripts:
+
+## Linux
+
+```bash
+set -e
+python3 -m venv env/
+. env/bin/activate
+pip install -r requirements_dev.txt
+pyinstaller src/DarkChess.py
+tar c -Jf "DarkChess_Linux-$(uname -m).txz" --strip-components=1 dist/DarkChess
+```
+
+## Windows
+
+**TODO**
