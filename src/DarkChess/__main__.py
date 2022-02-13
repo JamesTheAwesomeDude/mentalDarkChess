@@ -17,13 +17,30 @@ from criptogrvfy import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_en
 
 CHESS_PORT = 64355
 
+
+_UNICODE_TERMINAL = ('UTF-' in environ.get('LANG', 'C'))
+
+
 def show_board(board, *args, **kwargs):
-	if 'UTF-' in environ.get('LANG', 'C'):
+	if _UNICODE_TERMINAL:
 		print(board.unicode(*args, **kwargs))
 	else:
 		if(args or kwargs):
-			warn("Arguments to show_board not supported in this environment")
+			warn("Arguments to show_board not supported in this environment (LANG=%s)" % environ.get('LANG', ''))
 		print(str(board))
+
+def prettyprint_bytes(b):
+	if _UNICODE_TERMINAL:
+		return paper_encode(b)
+	else:
+		return b64encode(b, b'-_').decode().rstrip('=')
+
+def paper_encode(b):
+	return str().join(chr(0x2800 + i) for i in b)
+
+def paper_decode(s):
+	return bytes((ord(c) - 0x2800) for c in s)
+
 
 def _main(board, color):
 	winner = None
@@ -86,9 +103,9 @@ def probe_opponent(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	seed = urandom(32) # TODO allow Bob to ensure randomness
-	logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
+	logging.info('CHOSE SEED     : [%s]', prettyprint_bytes(seed))
 	hseed = h(seed)
-	logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
+	logging.info('SEED COMMITMENT: [%s]', prettyprint_bytes(hseed))
 	socket.send_serialized(hseed, _serialize)
 	fake_pkgen = gen_fake_pubkeys(seed)
 	piece_map = dict()
@@ -101,7 +118,7 @@ def probe_opponent(board):
 			sk, pk = make_real_keypair()
 			keys.append(sk)
 			pkeys[square] = pk
-		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(chess.SQUARE_NAMES[square] for square in board.vision)))
+		logging.debug('PEEK #%u: %s', max_vision, ','.join(chess.SQUARE_NAMES[square] for square in board.vision))
 		socket.send_serialized(pkeys, _serialize)
 		payload = socket.recv_serialized(_deserialize)
 		for square, sk in zip(board.vision, keys):
@@ -113,6 +130,7 @@ def probe_opponent(board):
 				piece_map[square] = piece
 			if piece:
 				board.set_piece_at(square, piece, gently=True)
+	logging.info('PEEKED AT: %s', ','.join(chess.SQUARE_NAMES[square] for square in board.vision))
 	captured_square = yield piece_map
 	yield socket.send_serialized(captured_square, _serialize)
 
@@ -122,12 +140,12 @@ def respond_to_probe(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	hseed = socket.recv_serialized(_deserialize)
-	logging.info('GOT SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
+	logging.info('GOT SEED COMMITMENT: [%s]', prettyprint_bytes(hseed))
 	queries = []
-	for _ in range(1, 8):
+	for i in range(1, 8):
 		pkeys = socket.recv_serialized(_deserialize)
-		logging.info('GOT QUERY: %s', json.dumps(list(b64encode(pk, b'-_').decode() for pk in pkeys)))
-		queries.append((hseed, pkeys))
+		logging.debug('GOT QUERY #%u: [%s]', i, ''.join(prettyprint_bytes(pk) for pk in pkeys))
+		queries.append(pkeys)
 		payload = []
 		for square, pk in zip(chess.SQUARES, pkeys):
 			# note: you should forget opponent pieces BEFORE running this function
@@ -136,6 +154,7 @@ def respond_to_probe(board):
 			encrypted_piece_data = pk_encrypt(pk, piece_data)
 			payload.append(encrypted_piece_data)
 		socket.send_serialized(payload, _serialize)
+	logging.info('H(QUERIES): [%s]', prettyprint_bytes(h(bytes().join(bytes().join(query) for query in queries))))
 	yield queries
 	captured_square = socket.recv_serialized(_deserialize)
 	yield captured_square
