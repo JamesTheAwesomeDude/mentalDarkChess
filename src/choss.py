@@ -17,9 +17,15 @@ def monkey_patch(chess):
 		return type(self)(self.piece_type, not self.color)
 	chess.Piece.__invert__ = _piece_invert
 	class DarkBoard(chess.Board):
-		def __init__(self, *args, **kwargs):
+		def __init__(self, *args, pov=None, **kwargs):
+			if pov is None:
+				warn(NotImplementedError)
 			super().__init__(*args, **kwargs)
-			self.vision = chess.SquareSet(chess.SQUARES)
+			self.pov = pov
+			self.forget_player(not self.pov)
+			self.vision = self.calc_vision()
+			self.esp_action = chess.SquareSet()
+			self.esp_piece = chess.SquareSet()
 		def remove_piece_at(self, square, gently=False):
 			if gently and type(super()) is chess.Board:
 				return chess.BaseBoard.remove_piece_at(self, square)
@@ -42,33 +48,44 @@ def monkey_patch(chess):
 				piece = self.piece_at(square)
 				if piece and piece.color == color:
 					self.remove_piece_at(square, gently=True)
-		def check_vision(self, square, color=None, max_vision=inf):
-			if color is None:
-				color = self.turn
-			for attacker_square in self.attackers(self.turn, square):
-				attacker = self.piece_at(attacker_square)
-				if attacker.piece_type not in chess.UNBLOCKABLE_PIECES or max_vision < 1:
-					if chess.square_distance(attacker_square, square) <= max_vision:
-						return True
-		def calc_vision(self, *, pov=None, vision=None, max_vision=inf, self_vision=False):
-			if vision is None:
-				vision = chess.SquareSet(chess.BB_EMPTY)
+		def calc_vision(self, *, pov=None, initial=chess.BB_EMPTY, max_vision=inf, self_vision=False):
+			vision = chess.SquareSet(initial)
 			if pov is None:
-				pov = self.turn
-			if self.king(pov) is None:
+				pov = self.pov
+			elif self.king(pov) is None:
 				warn("Trying to calculate vision for a side with no king")
-			for square in chess.SQUARES:
-				if square in vision:
-					# We already see this square
-					continue
+			for square in filter(lambda square: square not in vision, chess.SQUARES):
 				piece = self.piece_at(square)
-				if piece:
-					if self_vision or piece.color != self.turn:
-						vision.add(square)
-				if self.check_vision(square, max_vision):
+				if not piece:
+					# Nobody here, nothing to do.
+					# (This loop uses Board.attacks, not Board.attackers)
+					continue
+				if piece.color != pov:
+					# We know there's an enemy piece here,
+					# Therefore, we deduce we can see this square
 					vision.add(square)
+					continue
+				elif self_vision:
+					# We know there's an allied piece here,
+					# but may or may not want to account it
+					vision.add(square)
+				for dest in filter(lambda square: square not in vision, self.attacks(square)):
+					# For each maybe-unseen square our piece is attacking:
+					# if it's closer than the vision limit,
+					if max_vision >= chess.square_distance(square, dest) or (piece.piece_type in chess.UNBLOCKABLE_PIECES and max_vision > 0):
+						# then we do, in fact, see it.
+						vision.add(square)
 			return vision
-		def unicode(self, *, invert_color: bool = False, borders: bool = False, empty_square: str = "\u2b58", hidden_square: str = "\u2047") -> str:
+		def __repr__(self):
+			return f"{type(self).__name__}({self.board_fen()!r}, pov={self.pov})"
+		def unicode(self, *,
+		  invert_color=False,
+		  borders=False,
+		  empty_square="\u2b58",
+		  hidden_square="\u2047",
+		  action_square="\u2b57",
+		  something_square="\u2b59"
+		):
 			builder = []
 			for rank_index in range(7, -1, -1):
 				if borders:
@@ -87,7 +104,14 @@ def monkey_patch(chess):
 					if piece:
 						builder.append(piece.unicode_symbol(invert_color=invert_color))
 					else:
-						builder.append(empty_square if square_index in self.vision else hidden_square)
+						if square_index in self.vision:
+							builder.append(empty_square)
+						elif square_index in self.esp_action:
+							builder.append(action_square)
+						elif square_index in self.esp_piece:
+							builder.append(something_square)
+						else:
+							builder.append(hidden_square)
 				if borders:
 					builder.append("|")
 
@@ -106,7 +130,14 @@ def monkey_patch(chess):
 				if piece:
 					builder.append(piece.symbol())
 				else:
-					builder.append("." if square in self.vision else "?")
+					if square in self.vision:
+						builder.append(".")
+					elif square in self.esp_action:
+						builder.append(",")
+					elif square in self.esp_piece:
+						builder.append("!")
+					else:
+						builder.append("?")
 				if chess.BB_SQUARES[square] & chess.BB_FILE_H:
 					if square != chess.H1:
 						builder.append("\n")

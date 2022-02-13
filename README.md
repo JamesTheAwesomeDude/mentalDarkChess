@@ -67,7 +67,7 @@ python3 -m venv env/
 . env/bin/activate
 pip install -r requirements_dev.txt
 pyinstaller src/DarkChess.py
-tar c -Jf "DarkChess_Linux-$(uname -m).txz" --strip-components=1 dist/DarkChess
+tar c -Jf "DarkChess-Linux-$(uname -m).txz" --strip-components=1 dist/DarkChess
 ```
 
 ## Windows

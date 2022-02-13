@@ -44,7 +44,7 @@ def my_turn(board):
 	alice = probe_opponent(board)
 	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
-	board.vision = board.calc_vision(pov=board.turn)
+	board.vision = board.calc_vision()
 	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
 	dest = move.to_square
@@ -91,7 +91,7 @@ def probe_opponent(board):
 		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
 		hseed = h(seed)
 		logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
-		board.calc_vision(pov=board.turn, vision=vision, max_vision=max_vision)
+		board.vision = board.calc_vision(initial=int(vision), max_vision=max_vision)
 		pkeys = gen_fake_pubkeys(seed)
 		keys = []
 		for square in vision:
@@ -145,12 +145,12 @@ def _deserialize(b):
 
 if __name__ == '__main__':
 	import sys
-	board = chess.DarkBoard()
-	if "lol" in environ:
-		board.remove_piece_at(chess.D2)
-		board.remove_piece_at(chess.E2)
 	colorstring = environ.get('chesscolor', None)
 	if colorstring is None:
 		colorstring = {'W': 'white', 'B': 'black'}[input("Do you want to play as WHITE (w) or as BLACK (b)?\n> ")[0].upper()]
 	color = chess.COLOR_NAMES.index(colorstring)
+	board = chess.DarkBoard(pov=color)
+	if "lol" in environ:
+		board.remove_piece_at(chess.D2)
+		board.remove_piece_at(chess.E2)
 	sys.exit(_main(board, color))
