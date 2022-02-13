@@ -5,7 +5,7 @@ from warnings import warn
 import logging
 from itertools import islice
 from zmq.utils.z85 import encode as z85encode, decode as z85decode
-logging.basicConfig(level=logging.INFO, stream=stdout)
+logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 import chess
 import zmq
@@ -53,7 +53,7 @@ def my_turn(board):
 	board.forget_player(not board.turn)
 	alice = probe_opponent(board)
 	revealed = next(alice)
-	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
+	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
 	board.vision = board.calc_vision()
 	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
@@ -95,9 +95,9 @@ def probe_opponent(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	seed = urandom(32) # TODO allow Bob to ensure randomness
-	logging.info('CHOSE SEED     : [%s]', prettyprint_bytes(seed))
+	logging.info('CHOSE SEED     : %s', prettyprint_bytes(seed))
 	hseed = h(seed)
-	logging.info('SEED COMMITMENT: [%s]', prettyprint_bytes(hseed))
+	logging.info('SEED COMMITMENT: %s', prettyprint_bytes(hseed))
 	socket.send_serialized(hseed, _serialize)
 	fake_pkgen = gen_fake_pubkeys(seed)
 	piece_map = dict()
@@ -132,11 +132,11 @@ def respond_to_probe(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	hseed = socket.recv_serialized(_deserialize)
-	logging.info('GOT SEED COMMITMENT: [%s]', prettyprint_bytes(hseed))
+	logging.info('GOT SEED COMMITMENT: %s', prettyprint_bytes(hseed))
 	queries = []
 	for i in range(1, 8):
 		pkeys = socket.recv_serialized(_deserialize)
-		logging.debug('GOT QUERY #%u: [%s]', i, ''.join(prettyprint_bytes(pk) for pk in pkeys))
+		logging.debug('GOT QUERY #%u: %s', i, ''.join(prettyprint_bytes(pk) for pk in pkeys))
 		queries.append(pkeys)
 		payload = []
 		for square, pk in zip(chess.SQUARES, pkeys):
@@ -146,7 +146,7 @@ def respond_to_probe(board):
 			encrypted_piece_data = pk_encrypt(pk, piece_data)
 			payload.append(encrypted_piece_data)
 		socket.send_serialized(payload, _serialize)
-	logging.info('H(QUERIES): [%s]', prettyprint_bytes(h(bytes().join(bytes().join(query) for query in queries))))
+	logging.info('H(QUERIES): %s', prettyprint_bytes(h(bytes().join(bytes().join(query) for query in queries))))
 	yield queries
 	captured_square = socket.recv_serialized(_deserialize)
 	yield captured_square
