@@ -54,7 +54,7 @@ def monkey_patch(chess):
 				pov = self.pov
 			elif self.king(pov) is None:
 				warn("Trying to calculate vision for a side with no king")
-			for square in filter(lambda square: square not in vision, chess.SQUARES):
+			for square in chess.SQUARES:
 				piece = self.piece_at(square)
 				if not piece:
 					# Nobody here, nothing to do.
@@ -74,7 +74,7 @@ def monkey_patch(chess):
 					# if it's closer than the vision limit,
 					if max_vision >= chess.square_distance(square, dest) or (piece.piece_type in chess.UNBLOCKABLE_PIECES and max_vision > 0):
 						# then we do, in fact, see it.
-						vision.add(square)
+						vision.add(dest)
 			return vision
 		def __repr__(self):
 			return f"{type(self).__name__}({self.board_fen()!r}, pov={self.pov})"

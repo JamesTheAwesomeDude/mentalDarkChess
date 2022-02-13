@@ -85,23 +85,23 @@ def probe_opponent(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	piece_map = dict()
-	vision = chess.SquareSet()
+	board.vision = chess.SquareSet()
 	for max_vision in range(1, 8):
 		seed = urandom(32) # TODO allow Bob to ensure randomness
 		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
 		hseed = h(seed)
 		logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
-		board.vision = board.calc_vision(initial=int(vision), max_vision=max_vision)
+		board.vision = board.calc_vision(initial=int(board.vision), max_vision=max_vision)
 		pkeys = gen_fake_pubkeys(seed)
 		keys = []
-		for square in vision:
+		for square in board.vision:
 			sk, pk = gen_real_keypair()
 			keys.append(sk)
 			pkeys[square] = pk
-		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(chess.SQUARE_NAMES[square] for square in vision)))
+		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(chess.SQUARE_NAMES[square] for square in board.vision)))
 		socket.send_serialized([hseed, pkeys], _serialize)
 		payload = socket.recv_serialized(_deserialize)
-		for square, sk in zip(vision, keys):
+		for square, sk in zip(board.vision, keys):
 			piece_data = pk_decrypt(sk, payload[square])
 			piece = chess.Piece.from_symbol(piece_data.decode()) if piece_data != b'\x00' else None
 			if square in piece_map:
