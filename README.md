@@ -20,29 +20,34 @@ I believe this is possible, and I will implement an example program to demonstra
 
 ```shell
 # Linux
-sudo apt install python3-venv # might be needed
+sudo apt install python3-venv
 python3 -m venv env/
+# If (though not only if) you're using something other than Ubuntu, you may want do do this differently
 . env/bin/activate
 pip install -r requirements.txt
 
 cd src
-chesscolor=white python main.py
+chesscolor=white python -m FogChess
+# Or you can run python FogChess.py; whatever floats your goat
+
 ## DO THE SAME IN ANOTHER WINDOW: ##
 . env/bin/activate
 cd src
-chesscolor=black python main.py
+chesscolor=black python -m FogChess
 ```
 
 ```cmd
 REM windows
+REM idfk how to set up Spyder or whatever- u on your own lol
 
 cd src
 set chesscolor=white
-python main.py
+python -m FogChess
+
 REM DO THE SAME IN ANOTHER WINDOW-
 cd src
 set chesscolor=black
-python main.py
+python -m FogChess
 ```
 
 Also pass env `lol=555` if you want White to start out with the D and E pawns removed

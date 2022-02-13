@@ -1,5 +1,6 @@
 from math import inf
 import inspect, ast, re
+from warnings import warn
 
 def _quantify(iterable, pred=bool):
 	return sum(map(pred, iterable))
@@ -44,7 +45,9 @@ def monkey_patch(chess):
 				piece = self.piece_at(square)
 				if piece and piece.color == color:
 					self.remove_piece_at(square, gently=True)
-		def check_vision(self, square, max_vision=inf):
+		def check_vision(self, square, color=None, max_vision=inf):
+			if color is None:
+				color = self.turn
 			if self.king(self.turn) is None:
 				warn("Trying to calculate vision for a side with no king")
 			for attacker_square in self.attackers(self.turn, square):

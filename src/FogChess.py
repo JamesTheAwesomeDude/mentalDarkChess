@@ -1,23 +1,27 @@
-import chess
-import choss
-choss.monkey_patch(chess)
-from criptogrvfy import h, gen_fake_pubkeys, gen_real_keypair, publickey, pk_encrypt, pk_decrypt
-import zmq
-import bencodepy
-import logging
-import json
-import platform
 from sys import stdout
 from os import urandom, environ
-from base64 import b64encode, b64decode
+import json
+from warnings import warn
+import logging
 logging.basicConfig(level=logging.INFO, stream=stdout)
+
+import chess
+import zmq
+import bencodepy
+from base64 import b64encode, b64decode
+
+from choss import monkey_patch as _monkey_patch
+_monkey_patch(chess)
+from criptogrvfy import h, gen_fake_pubkeys, gen_real_keypair, publickey, pk_encrypt, pk_decrypt
 
 CHESS_PORT = 64355
 
-def show_board(board):
-	if 'UTF-' in os.environ.get('LANG', 'C'):
-		print(board.unicode())
+def show_board(board, *args, **kwargs):
+	if 'UTF-' in environ.get('LANG', 'C'):
+		print(board.unicode(*args, **kwargs))
 	else:
+		if(args or kwargs):
+			warn("Arguments to show_board not supported in this environment")
 		print(str(board))
 
 def _main(board, color):
@@ -52,6 +56,7 @@ def my_turn(board):
 		alice.send(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
+	show_board(board, color=not board.turn)
 
 
 def their_turn(board):
@@ -67,6 +72,7 @@ def their_turn(board):
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
+	show_board(board, color=not board.turn)
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
@@ -133,12 +139,11 @@ def _serialize(m):
 def _deserialize(b):
 	return bencodepy.decode(bytes().join(b))
 
-
 if __name__ == '__main__':
-	import os, sys
+	import sys
 	board = chess.DarkBoard()
-	if "lol" in os.environ:
+	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
-	color = chess.COLOR_NAMES.index(os.environ.get('chesscolor', 'white'))
-	_main(board, color)
+	color = chess.COLOR_NAMES.index(environ.get('chesscolor', 'white'))
+	sys.exit(_main(board, color))
