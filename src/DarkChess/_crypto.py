@@ -4,7 +4,7 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import serialization as _crypto_serialization
 from ed25519 import decodepoint as _ed25519_decodepoint
-from rng import RijndaelRng
+from _rng import RijndaelRng
 
 def h(m):
 	return hashlib.sha256(m).digest()

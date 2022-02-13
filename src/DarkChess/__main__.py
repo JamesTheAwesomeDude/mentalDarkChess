@@ -11,9 +11,8 @@ import chess
 import zmq
 import bencodepy
 
-from choss import monkey_patch as _monkey_patch
-_monkey_patch(chess)
-from criptogrvfy import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt
+from .variants import DarkBoard
+from ._crypto import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt
 
 CHESS_PORT = 64355
 
@@ -164,7 +163,7 @@ if __name__ == '__main__':
 	if colorstring is None:
 		colorstring = {'W': 'white', 'B': 'black'}[input("Do you want to play as WHITE (w) or as BLACK (b)?\n> ")[0].upper()]
 	color = chess.COLOR_NAMES.index(colorstring)
-	board = chess.DarkBoard(pov=color)
+	board = DarkBoard(pov=color)
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
