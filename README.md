@@ -64,8 +64,7 @@ python3 -m venv env/
 . env/bin/activate
 pip install -r requirements-dev.txt -r requirements.txt
 cd src
-pyinstaller -F DarkChess/
-file dist/DarkChess
+time pyinstaller --clean -n DarkChess -F DarkChess/__main__.py && file dist/DarkChess
 ```
 
 ## Windows
