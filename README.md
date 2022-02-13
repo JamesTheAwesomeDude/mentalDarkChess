@@ -14,7 +14,7 @@ c. Neither player trusts any ["referee"](http://www.gamerz.net/pbmserv/darkchess
 
 # A
 
-I believe this is possible, and I will implement an example program to demonstrate it.
+This is possible using "oblivious transfer", and this program serves as a demonstration.
 
 # Basic Usage
 
@@ -26,13 +26,12 @@ python3 -m venv env/
 # If (though not only if) you're using something other than Ubuntu, you may want do do this differently
 
 (. env/bin/activate; cd src
-chesscolor=white python -m FogChess
+ python -m FogChess
 )
-# Or you can run python FogChess.py; whatever floats your goat
 
 ## DO THE SAME IN ANOTHER WINDOW: ##
 (. env/bin/activate; cd src
-chesscolor=black python -m FogChess
+ python -m FogChess
 )
 ```
 
@@ -44,16 +43,14 @@ REM should just work without issue:
 
 python -m pip install -r requirements.txt
 cd src
-set chesscolor=white
 python -m DarkChess
 
 REM DO THE SAME IN ANOTHER WINDOW:
 cd src
-set chesscolor=black
 python -m DarkChess
 ```
 
-Also pass env `lol=555` if you want White to start out with the D and E pawns removed
+Pass env `lol=555` if you want White to start out with the D and E pawns removed
 
 # Development
 
@@ -65,9 +62,9 @@ Generate a release with the following scripts:
 set -e
 python3 -m venv env/
 . env/bin/activate
-pip install -r requirements_dev.txt
+pip install -r requirements-dev.txt -r requirements.txt
 cd src
-pyinstaller -F DarkChess.py
+pyinstaller -F DarkChess/
 file dist/DarkChess
 ```
 
