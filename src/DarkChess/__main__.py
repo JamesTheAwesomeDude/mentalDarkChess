@@ -3,16 +3,17 @@ from os import urandom, environ
 import json
 from warnings import warn
 import logging
+from itertools import islice
+from base64 import b64encode, b64decode
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 import chess
 import zmq
 import bencodepy
-from base64 import b64encode, b64decode
 
 from choss import monkey_patch as _monkey_patch
 _monkey_patch(chess)
-from criptogrvfy import h, gen_fake_pubkeys, gen_real_keypair, publickey, pk_encrypt, pk_decrypt
+from criptogrvfy import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt
 
 CHESS_PORT = 64355
 
@@ -84,22 +85,24 @@ def probe_opponent(board):
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
+	seed = urandom(32) # TODO allow Bob to ensure randomness
+	logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
+	hseed = h(seed)
+	logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
+	socket.send_serialized(hseed, _serialize)
+	fake_pkgen = gen_fake_pubkeys(seed)
 	piece_map = dict()
 	board.vision = chess.SquareSet()
 	for max_vision in range(1, 8):
-		seed = urandom(32) # TODO allow Bob to ensure randomness
-		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
-		hseed = h(seed)
-		logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
 		board.vision = board.calc_vision(initial=int(board.vision), max_vision=max_vision)
-		pkeys = gen_fake_pubkeys(seed)
+		pkeys = list(islice(fake_pkgen, len(chess.SQUARES)))
 		keys = []
 		for square in board.vision:
-			sk, pk = gen_real_keypair()
+			sk, pk = make_real_keypair()
 			keys.append(sk)
 			pkeys[square] = pk
 		logging.info('CLAIMING VISION %u: %s', max_vision, json.dumps(list(chess.SQUARE_NAMES[square] for square in board.vision)))
-		socket.send_serialized([hseed, pkeys], _serialize)
+		socket.send_serialized(pkeys, _serialize)
 		payload = socket.recv_serialized(_deserialize)
 		for square, sk in zip(board.vision, keys):
 			piece_data = pk_decrypt(sk, payload[square])
@@ -118,10 +121,11 @@ def respond_to_probe(board):
 	ctx = zmq.Context()
 	socket = ctx.socket(zmq.PAIR)
 	socket.bind('tcp://*:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
+	hseed = socket.recv_serialized(_deserialize)
+	logging.info('GOT SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
 	queries = []
 	for _ in range(1, 8):
-		hseed, pkeys = socket.recv_serialized(_deserialize)
-		logging.info('GOT SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
+		pkeys = socket.recv_serialized(_deserialize)
 		logging.info('GOT QUERY: %s', json.dumps(list(b64encode(pk, b'-_').decode() for pk in pkeys)))
 		queries.append((hseed, pkeys))
 		payload = []
