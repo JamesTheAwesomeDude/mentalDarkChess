@@ -17,12 +17,9 @@ def monkey_patch(chess):
 		return type(self)(self.piece_type, not self.color)
 	chess.Piece.__invert__ = _piece_invert
 	class DarkBoard(chess.Board):
-		#def __init__(self, *args, **kwargs):
-		#	super().__init__(*args, **kwargs)
-		#	self.vision = chess.SquareSet(chess.SQUARES)
-		@property
-		def vision(self):
-			return self.calc_vision()
+		def __init__(self, *args, **kwargs):
+			super().__init__(*args, **kwargs)
+			self.vision = chess.SquareSet(chess.SQUARES)
 		def remove_piece_at(self, square, gently=False):
 			if gently and type(super()) is chess.Board:
 				return chess.BaseBoard.remove_piece_at(self, square)
@@ -48,17 +45,21 @@ def monkey_patch(chess):
 		def check_vision(self, square, color=None, max_vision=inf):
 			if color is None:
 				color = self.turn
-			if self.king(self.turn) is None:
-				warn("Trying to calculate vision for a side with no king")
 			for attacker_square in self.attackers(self.turn, square):
 				attacker = self.piece_at(attacker_square)
 				if attacker.piece_type not in chess.UNBLOCKABLE_PIECES or max_vision < 1:
 					if chess.square_distance(attacker_square, square) <= max_vision:
 						return True
-		def calc_vision(self, initial_vision=chess.BB_EMPTY, max_vision=inf, self_vision=False):
-			vision = chess.SquareSet(initial_vision)
+		def calc_vision(self, *, pov=None, vision=None, max_vision=inf, self_vision=False):
+			if vision is None:
+				vision = chess.SquareSet(chess.BB_EMPTY)
+			if pov is None:
+				pov = self.turn
+			if self.king(pov) is None:
+				warn("Trying to calculate vision for a side with no king")
 			for square in chess.SQUARES:
 				if square in vision:
+					# We already see this square
 					continue
 				piece = self.piece_at(square)
 				if piece:
@@ -100,13 +101,12 @@ def monkey_patch(chess):
 			return "".join(builder)
 		def __str__(self) -> str:
 			builder = []
-			vision = self.calc_vision()
 			for square in chess.SQUARES_180:
 				piece = self.piece_at(square)
 				if piece:
 					builder.append(piece.symbol())
 				else:
-					builder.append("." if square in vision else "?")
+					builder.append("." if square in self.vision else "?")
 				if chess.BB_SQUARES[square] & chess.BB_FILE_H:
 					if square != chess.H1:
 						builder.append("\n")

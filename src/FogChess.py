@@ -44,6 +44,7 @@ def my_turn(board):
 	alice = probe_opponent(board)
 	revealed = next(alice)
 	logging.info('REVEALED: %s', json.dumps(dict(((chess.SQUARE_NAMES[k], v.symbol() if v else None) for k, v in revealed.items()))))
+	board.vision = board.calc_vision(pov=board.turn)
 	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
 	dest = move.to_square
@@ -56,7 +57,8 @@ def my_turn(board):
 		alice.send(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
-	show_board(board, color=not board.turn)
+	# Don't run board.update_vision here as it won't yield correct results
+	show_board(board)
 
 
 def their_turn(board):
@@ -72,7 +74,8 @@ def their_turn(board):
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
-	show_board(board, color=not board.turn)
+	#board.update_vision(pov=not board.turn)
+	show_board(board)
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
@@ -82,12 +85,13 @@ def probe_opponent(board):
 	socket = ctx.socket(zmq.PAIR)
 	socket.connect('tcp://localhost:%u' % (CHESS_PORT + board.fullmove_number * 2 - 1 + (not board.turn)))
 	piece_map = dict()
+	vision = chess.SquareSet()
 	for max_vision in range(1, 8):
 		seed = urandom(32) # TODO allow Bob to ensure randomness
 		logging.info('CHOSE SEED: %s', b64encode(seed, b'-_').decode())
 		hseed = h(seed)
 		logging.info('SEED COMMITMENT: %s', b64encode(hseed, b'-_').decode())
-		vision = chess.DarkBoard.calc_vision(board, max_vision=max_vision)
+		board.calc_vision(pov=board.turn, vision=vision, max_vision=max_vision)
 		pkeys = gen_fake_pubkeys(seed)
 		keys = []
 		for square in vision:
@@ -145,5 +149,8 @@ if __name__ == '__main__':
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
-	color = chess.COLOR_NAMES.index(environ.get('chesscolor', 'white'))
+	colorstring = environ.get('chesscolor', None)
+	if colorstring is None:
+		colorstring = {'W': 'white', 'B': 'black'}[input("Do you want to play as WHITE (w) or as BLACK (b)?\n> ")[0].upper()]
+	color = chess.COLOR_NAMES.index(colorstring)
 	sys.exit(_main(board, color))

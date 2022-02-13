@@ -22,29 +22,32 @@ I believe this is possible, and I will implement an example program to demonstra
 # Linux
 sudo apt install python3-venv
 python3 -m venv env/
+(. env/bin/activate; pip install -r requirements.txt )
 # If (though not only if) you're using something other than Ubuntu, you may want do do this differently
-. env/bin/activate
-pip install -r requirements.txt
 
-cd src
+(. env/bin/activate; cd src
 chesscolor=white python -m FogChess
+)
 # Or you can run python FogChess.py; whatever floats your goat
 
 ## DO THE SAME IN ANOTHER WINDOW: ##
-. env/bin/activate
-cd src
+(. env/bin/activate; cd src
 chesscolor=black python -m FogChess
+)
 ```
 
 ```cmd
-REM windows
-REM idfk how to set up Spyder or whatever- u on your own lol
+REM Windows
+REM idek how to set up Spyder or whatever- u on your own lol
+REM if you have Python in your CMD, the following
+REM should just work without issue:
 
+python -m pip install -r requirements.txt
 cd src
 set chesscolor=white
 python -m FogChess
 
-REM DO THE SAME IN ANOTHER WINDOW-
+REM DO THE SAME IN ANOTHER WINDOW:
 cd src
 set chesscolor=black
 python -m FogChess
