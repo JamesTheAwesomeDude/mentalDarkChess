@@ -45,12 +45,12 @@ REM should just work without issue:
 python -m pip install -r requirements.txt
 cd src
 set chesscolor=white
-python -m FogChess
+python -m DarkChess
 
 REM DO THE SAME IN ANOTHER WINDOW:
 cd src
 set chesscolor=black
-python -m FogChess
+python -m DarkChess
 ```
 
 Also pass env `lol=555` if you want White to start out with the D and E pawns removed
@@ -66,8 +66,9 @@ set -e
 python3 -m venv env/
 . env/bin/activate
 pip install -r requirements_dev.txt
-pyinstaller src/DarkChess.py
-tar c -Jf "DarkChess-Linux-$(uname -m).txz" --strip-components=1 dist/DarkChess
+cd src
+pyinstaller -F DarkChess.py
+file dist/DarkChess
 ```
 
 ## Windows
