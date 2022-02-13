@@ -16,7 +16,7 @@ c. Neither player trusts any ["referee"](http://www.gamerz.net/pbmserv/darkchess
 
 I believe this is possible, and I will implement an example program to demonstrate it.
 
-# Usage
+# Basic Usage
 
 ```shell
 # Linux
@@ -54,3 +54,7 @@ python -m FogChess
 ```
 
 Also pass env `lol=555` if you want White to start out with the D and E pawns removed
+
+# Development
+
+TODO
