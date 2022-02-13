@@ -4,7 +4,7 @@ import json
 from warnings import warn
 import logging
 from itertools import islice
-from base64 import b64encode, b64decode
+from zmq.utils.z85 import encode as z85encode, decode as z85decode
 logging.basicConfig(level=logging.INFO, stream=stdout)
 
 import chess
@@ -29,17 +29,9 @@ def show_board(board, *args, **kwargs):
 			warn("Arguments to show_board not supported in this environment (LANG=%s)" % environ.get('LANG', ''))
 		print(str(board))
 
+
 def prettyprint_bytes(b):
-	if _UNICODE_TERMINAL:
-		return paper_encode(b)
-	else:
-		return b64encode(b, b'-_').decode().rstrip('=')
-
-def paper_encode(b):
-	return str().join(chr(0x2800 + i) for i in b)
-
-def paper_decode(s):
-	return bytes((ord(c) - 0x2800) for c in s)
+	return z85encode(b).decode()
 
 
 def _main(board, color):
