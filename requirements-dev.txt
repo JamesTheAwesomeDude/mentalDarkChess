@@ -1,7 +1,2 @@
-cryptography<39,>=2.8
-chess<2,>=1
-pyzmq<25,>=19
-bencode.py>=4
-
 wheel
 pyinstaller
