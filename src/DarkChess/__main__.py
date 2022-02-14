@@ -1,16 +1,15 @@
 from sys import stdout
 from os import urandom, environ
-import json
 from warnings import warn
-import logging
-from zmq.utils.z85 import encode as z85encode, decode as z85decode
-logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 import chess
+import zmq
+from zmq.utils.z85 import encode as z85encode, decode as z85decode
+import logging
+logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 from .variants import DarkBoard
-from ._crypto import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt
-from ._protos import probe_opponent, respond_to_probe
+from ._protos import probe_opponent, respond_to_probe, start_chess_conversation
 
 
 _UNICODE_TERMINAL = ('UTF-' in environ.get('LANG', 'C'))
@@ -23,10 +22,6 @@ def show_board(board, *args, **kwargs):
 		if(args or kwargs):
 			warn("Arguments to show_board not supported in this environment (LANG=%s)" % environ.get('LANG', ''))
 		print(str(board))
-
-
-def prettyprint_bytes(b):
-	return z85encode(b).decode()
 
 
 def _main(board, color):

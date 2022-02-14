@@ -9,10 +9,12 @@ from zmq.utils.z85 import encode as z85encode, decode as z85decode
 
 from ._crypto import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt
 
+
 CHESS_PORT = 64355
 
+
 def prettyprint_bytes(b):
-	return z85encode(b).decode()
+        return "'%s'" % z85encode(b).decode()
 
 
 def probe_opponent(board):
