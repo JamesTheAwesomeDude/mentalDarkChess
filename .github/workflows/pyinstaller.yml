@@ -1,15 +1,31 @@
 name: pyinstaller
-on: [push]
+on:
+  push:
+    branches: [ master ]
+    # TODO: on pr and tag only
+  pull-request:
+    branches: [ master ]
+  
 jobs:
   compile-linux-executable:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: JackMcKew/pyinstaller-action-linux@main
         with:
-          python-version: '3.8.x'
-      - run: pip install -r requirements_dev.txt -r requirements.txt
-      - run: pyinstaller -F src/DarkChess.py
+          path: src
+#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-$(uname -s)-$(uname -m)'
       - uses: actions/upload-artifact@v2
         with:
-          path: dist/DarkChess
+          path: src/dist/DarkChess
+  compile-windows-executable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: JackMcKew/pyinstaller-action-windows@main
+        with:
+          path: src
+#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-$(uname -s)-$(uname -m)'
+      - uses: actions/upload-artifact@v2
+        with:
+          path: src/dist/DarkChess.exe
