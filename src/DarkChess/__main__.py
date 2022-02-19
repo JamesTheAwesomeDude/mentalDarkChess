@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 from .variants import DarkBoard
-from ._protos import probe_opponent, respond_to_probe, start_chess_conversation
+from ._protos import Conversation
 
 
 _UNICODE_TERMINAL = ('UTF-' in environ.get('LANG', 'C'))
@@ -26,22 +26,23 @@ def show_board(board, *args, **kwargs):
 
 def _main(board, color):
 	winner = None
+	conv = Conversation(color)
 	if color == chess.BLACK:
-		winner = their_turn(board)
+		winner = their_turn(conv, board)
 	while winner is None:
 		if board.turn == color:
-			winner = my_turn(board)
+			winner = my_turn(conv, board)
 		else:
-			winner = their_turn(board)
+			winner = their_turn(conv, board)
 	if winner == color:
 		return 0
 	else:
 		return 1
 
 
-def my_turn(board):
+def my_turn(conv, board):
 	board.forget_player(not board.turn)
-	alice = probe_opponent(board)
+	alice = conv.probe_opponent(board)
 	revealed = next(alice)
 	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
 	board.vision = board.calc_vision()
@@ -61,9 +62,9 @@ def my_turn(board):
 	show_board(board)
 
 
-def their_turn(board):
+def their_turn(conv, board):
 	board.forget_player(board.turn)
-	bob = respond_to_probe(board)
+	bob = conv.respond_to_probe(board)
 	queries = next(bob)
 	captured_square = next(bob)
 	if captured_square == chess.NO_SQUARE:
