@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import serialization as _crypto_serialization
 from zmq.utils.z85 import encode as z85encode, decode as z85decode
 
-from ed25519 import decodepoint as _ed25519_decodepoint
 from _rng import RijndaelRng
 
 
@@ -17,39 +16,26 @@ def prettyprint_bytes(b):
 def h(m):
 	return hashlib.sha256(m).digest()
 
-def _validate_public_key(pk):
-	# TODO: find a "native" function for this
-	try:
-		_ed25519_decodepoint(pk)
-	except ValueError:
-		return False
-	else:
-		return True
 
 def gen_fake_pubkeys(seed, m=32):
 	aes_key = h(seed)
 	r = RijndaelRng(aes_key)
 	while True:
 		pk = urandom(m)
-		while not _validate_public_key(pk):
-			pk = urandom(m)
 		yield pk
 
 def make_real_keypair(m=32):
 	sk = urandom(m)
 	pk = publickey(sk)
-	while not _validate_public_key(pk):
-		#_warn("I don't think this codepath should ever be triggered\nsk=bytes.fromhex(\"%s\")" % sk.hex())
-		# https://crypto.stackexchange.com/questions/61777/distinguishing-x25519-public-keys-from-random
-		sk = urandom(m)
-		pk = publickey(sk)
 	return sk, pk
 
 def _publickey(_sk):
-	return _sk.public_key().public_bytes(encoding=_crypto_serialization.Encoding.Raw, format=_crypto_serialization.PublicFormat.Raw)
+	_pk = _sk.public_key()
+	return _pk.public_bytes(encoding=_crypto_serialization.Encoding.Raw, format=_crypto_serialization.PublicFormat.Raw)
 
 def publickey(sk):
-	return _publickey(x25519.X25519PrivateKey.from_private_bytes(sk))
+	_sk = x25519.X25519PrivateKey.from_private_bytes(sk)
+	return _publickey(_sk)
 
 def pk_encrypt(pk, data, aad=None):
 	_sk = x25519.X25519PrivateKey.generate()
