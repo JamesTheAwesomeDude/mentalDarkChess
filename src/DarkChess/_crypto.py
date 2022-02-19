@@ -2,7 +2,7 @@ import hashlib
 from os import urandom
 from warnings import warn as _warn
 
-from cryptography.hazmat.primitives.asymmetric import x25519
+from cryptography.hazmat.primitives.asymmetric import x25519, ed25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import serialization as _crypto_serialization
 
@@ -64,3 +64,11 @@ def pk_decrypt(sk, ciphertext, aad=None):
 	key = _sk.exchange(_pk)
 	cipher = ChaCha20Poly1305(key)
 	return cipher.decrypt(nonce, ciphertext, aad)
+
+def pk_sign(sk, data):
+	_sk = ed25519.Ed25519PrivateKey.from_private_bytes(sk)
+	return _sk.sign(data)
+
+def pk_verify(pk, data, signature):
+	_pk = ed25519.Ed25519PublicKey.from_public_bytes(pk)
+	return _pk.verify(signature, data)
