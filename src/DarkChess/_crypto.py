@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import serialization as _crypto_serialization
 from zmq.utils.z85 import encode as z85encode, decode as z85decode
 
-from _rng import RijndaelRng
+from ._rng import RijndaelRng
 
 
 def prettyprint_bytes(b):
