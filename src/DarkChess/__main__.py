@@ -58,7 +58,12 @@ def my_turn(conv, board):
 		alice.send(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
-	# Don't run board.update_vision here as it won't yield correct results
+	board.forget_player(board.turn)
+	alice = conv.probe_opponent(board)
+	revealed = next(alice)
+	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
+	alice.send(chess.NO_SQUARE)
+	board.vision = board.calc_vision()
 	show_board(board)
 
 
@@ -75,8 +80,10 @@ def their_turn(conv, board):
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
-	#board.update_vision(pov=not board.turn)
-	show_board(board)
+	board.forget_player(not board.turn)
+	bob = conv.respond_to_probe(board)
+	queries = next(bob)
+	next(bob)
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
