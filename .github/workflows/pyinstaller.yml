@@ -14,10 +14,11 @@ jobs:
       - uses: JackMcKew/pyinstaller-action-linux@main
         with:
           path: src
+          spec: DarkChess/__main__.py
 #      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-$(uname -s)-$(uname -m)'
       - uses: actions/upload-artifact@v2
         with:
-          path: src/dist/DarkChess
+          path: src/dist/linux/DarkChess
   compile-windows-executable:
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +26,8 @@ jobs:
       - uses: JackMcKew/pyinstaller-action-windows@main
         with:
           path: src
-#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-$(uname -s)-$(uname -m)'
+          spec: DarkChess/__main__.py
+#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-Windows$(wine --get-major-version)-$(uname -m)'
       - uses: actions/upload-artifact@v2
         with:
-          path: src/dist/DarkChess.exe
+          path: src/dist/windows/DarkChess.exe
