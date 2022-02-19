@@ -5,19 +5,16 @@ from warnings import warn as _warn
 def _quantify(iterable, pred=bool):
 	return sum(map(pred, iterable))
 
-@classmethod
-def _move_remove(cls, square):
-	return cls(square, square, drop=chess.NO_PIECE)
-
-def _piece_invert(self):
-	return type(self)(self.piece_type, not self.color)
-
-
 def monkey_patch(chess):
 	chess.NO_PIECE = -len(chess.PIECE_NAMES)
 	chess.NO_SQUARE = len(chess.SQUARES)
 	chess.UNBLOCKABLE_PIECES = {chess.KNIGHT}
+	@classmethod
+	def _move_remove(cls, square):
+		return cls(square, square, drop=chess.NO_PIECE)
 	chess.Move.remove = _move_remove
+	def _piece_invert(self):
+		return type(self)(self.piece_type, not self.color)
 	chess.Piece.__invert__ = _piece_invert
 
 class DarkBoard(chess.Board):
