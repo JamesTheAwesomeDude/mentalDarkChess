@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 from .variants import DarkBoard
-from ._protos import Conversation
+from ._protos import Conversation, CHESS_PORT
 
 
 _UNICODE_TERMINAL = ('UTF-' in environ.get('LANG', 'C'))
@@ -24,9 +24,9 @@ def show_board(board, *args, **kwargs):
 		print(str(board))
 
 
-def _main(board, color):
+def _main(board, color, addr=None):
 	winner = None
-	conv = Conversation(color)
+	conv = Conversation(color, addr)
 	if color == chess.BLACK:
 		winner = their_turn(conv, board)
 	while winner is None:
@@ -35,9 +35,10 @@ def _main(board, color):
 		else:
 			winner = their_turn(conv, board)
 	if winner == color:
-		return 0
+		print("WINNER IS YOU")
 	else:
-		return 1
+		print("L O S S")
+	return 0
 
 
 def my_turn(conv, board):
@@ -49,15 +50,17 @@ def my_turn(conv, board):
 	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
 	dest = move.to_square
-	target_piece = board.piece_at(dest)
-	if target_piece is None:
+	captured_piece = board.piece_at(dest)
+	if captured_piece is None:
 		alice.send(chess.NO_SQUARE)
+	elif captured_piece.color == board.turn:
+		raise ValueError("Can't capture your own %s piece %s@%s")
 	else:
-		if target_piece.color == board.turn:
-			raise ValueError("Can't capture your own %s piece %s@%s")
+		logging.info("CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[dest])
 		alice.send(dest)
-		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
 	board.push(move)
+	if captured_piece and captured_piece.piece_type == chess.KING:
+		return not board.turn
 	board.forget_player(board.turn)
 	alice = conv.probe_opponent(board)
 	revealed = next(alice)
@@ -78,14 +81,14 @@ def their_turn(conv, board):
 		board.push(chess.Move.null())
 	else:
 		captured_piece = board.piece_at(captured_square)
-		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
+		board.push(chess.Move.remove(captured_square))
+	if captured_piece and captured_piece.piece_type == chess.KING:
+		return not board.turn
 	board.forget_player(not board.turn)
 	bob = conv.respond_to_probe(board)
 	queries = next(bob)
 	next(bob)
-	if captured_piece and captured_piece.piece_type == chess.KING:
-		return not board.turn
 
 def __entrypoint__():
 	import sys
@@ -93,6 +96,10 @@ def __entrypoint__():
 	if colorstring is None:
 		colorstring = {'W': 'white', 'B': 'black'}[input("Do you want to play as WHITE (w) or as BLACK (b)?\n> ")[0].upper()]
 	color = chess.COLOR_NAMES.index(colorstring)
+	if color != chess.WHITE:
+		addr = input(f"What PC is White on? [tcp://127.0.0.1:{CHESS_PORT}]\n> ") or None
+	else:
+		addr = None
 	board = DarkBoard(pov=color)
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)

@@ -2,6 +2,7 @@ import logging
 import chess
 import zmq
 from os import urandom
+import socket
 from itertools import islice
 #logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 import bencodepy
@@ -19,6 +20,8 @@ class Conversation():
 		if color == chess.WHITE:
 			if addr is None:
 				addr = 'tcp://*:%u' % CHESS_PORT
+				for ip in socket.gethostbyname_ex(socket.gethostname())[2]:
+					print("Listening on: %s" % addr.replace('//*', f'//{ip}', 1))
 			self._socket.bind(addr)
 		elif color == chess.BLACK:
 			if addr is None:
