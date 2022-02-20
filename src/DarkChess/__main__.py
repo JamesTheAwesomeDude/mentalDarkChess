@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 
 from .variants import DarkBoard
-from ._protos import Conversation
+from ._protos import Conversation, CHESS_PORT
 
 
 _UNICODE_TERMINAL = ('UTF-' in environ.get('LANG', 'C'))
@@ -24,9 +24,9 @@ def show_board(board, *args, **kwargs):
 		print(str(board))
 
 
-def _main(board, color):
+def _main(board, color, addr=None):
 	winner = None
-	conv = Conversation(color)
+	conv = Conversation(color, addr)
 	if color == chess.BLACK:
 		winner = their_turn(conv, board)
 	while winner is None:
@@ -93,6 +93,10 @@ def __entrypoint__():
 	if colorstring is None:
 		colorstring = {'W': 'white', 'B': 'black'}[input("Do you want to play as WHITE (w) or as BLACK (b)?\n> ")[0].upper()]
 	color = chess.COLOR_NAMES.index(colorstring)
+	if color != chess.WHITE:
+		addr = input(f"What PC is White on? [tcp://127.0.0.1:{CHESS_PORT}]\n> ") or None
+	else:
+		addr = None
 	board = DarkBoard(pov=color)
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
