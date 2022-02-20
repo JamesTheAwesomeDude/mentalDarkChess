@@ -3,8 +3,9 @@ import chess
 import zmq
 from os import urandom
 import socket
-from itertools import islice
-from collections import deque
+import urllib.request, urllib.error
+from itertools import islice, starmap
+from collections import deque, namedtuple
 #logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 import bencodepy
 
@@ -12,6 +13,9 @@ from ._crypto import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encry
 
 
 CHESS_PORT = 64355
+
+t_addrinfo = namedtuple('addrinfo', ['family', 'type', 'proto', 'canonname', 'sockaddr'])
+t_hostbyname_ex = namedtuple('hostbyname', ['name', 'aliaslist', 'addresslist'])
 
 
 class Conversation():
@@ -25,8 +29,8 @@ class Conversation():
 				addr = 'tcp://*:%u' % CHESS_PORT
 				# If doing so, inform the user of
 				# the available interfaces for their convenience
-				for ip in socket.gethostbyname_ex(socket.gethostname())[2]:
-					print("Listening on: %s" % addr.replace('//*', f'//{ip}', 1))
+				for ip in get_ip_addresses():
+					print("Listening on:\t%s" % addr.replace('//*', f'//{ip}', 1))
 			self._socket.bind(addr)
 		elif color == chess.BLACK:
 			if addr is None:
@@ -151,6 +155,28 @@ class Conversation():
 		square = self._socket.recv_serialized(_deserialize)
 		return square
 
+def get_ip_addresses():
+	ips = set()
+	for host in starmap(t_hostbyname_ex, map(socket.gethostbyname_ex, ['localhost', socket.gethostname()])):
+		for ip in host.addresslist:
+			ips.add(ip)
+	for addr in starmap(t_addrinfo, socket.getaddrinfo(socket.gethostname(), 0, 0, socket.SOCK_STREAM, socket.getprotobyname('tcp'))):
+		ip = addr.sockaddr[0]
+		if addr.family == socket.AF_INET6:
+			ip = '[%s]' % ip
+		ips.add(ip)
+	# TODO UPnP TODO #
+	#try:
+	#	r = urllib.request.urlopen('https://ipv4.icanhazip.com/')
+	#	if r.status not in {200, 304}:
+	#		raise urllib.error.HTTPError('HTTP %i' % r.status)
+	#	body = r.read()
+	#	ip = body.decode().strip()
+	#	ips.add(ip)
+	#except urllib.error.HTTPError, ValueError, UnicodeDecodeError:
+	#	pass
+	return ips
+
 def _serialize(m):
 	return [bencodepy.encode(m)]
 
@@ -163,3 +189,4 @@ def consume(iterator, n=None):
 		deque(iterator, maxlen=0)
 	else:
 		next(islice(iterator, n, n), None)
+
