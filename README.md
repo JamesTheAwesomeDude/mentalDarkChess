@@ -26,12 +26,12 @@ python3 -m venv env/
 # If (though not only if) you're using something other than Ubuntu, you may want do do this differently
 
 (. env/bin/activate; cd src
- python -m FogChess
+ python -m DarkChess
 )
 
 ## DO THE SAME IN ANOTHER WINDOW: ##
 (. env/bin/activate; cd src
- python -m FogChess
+ python -m DarkChess
 )
 ```
 
@@ -64,7 +64,7 @@ python3 -m venv env/
 . env/bin/activate
 pip install -r requirements-dev.txt -r requirements.txt
 cd src
-time pyinstaller --clean -n DarkChess -F DarkChess/__main__.py && file dist/DarkChess
+time pyinstaller --clean -y --dist ./dist/linux extra/DarkChess.spec && file dist/linux/DarkChess
 ```
 
 ## Windows
