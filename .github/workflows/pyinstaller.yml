@@ -1,0 +1,33 @@
+name: pyinstaller
+on:
+  push:
+    branches: [ master ]
+    # TODO: on pr and tag only
+  pull_request:
+    branches: [ master ]
+  
+jobs:
+  compile-linux-executable:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: JackMcKew/pyinstaller-action-linux@main
+        with:
+          spec: extra/DarkChess.spec
+          path: .
+#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-$(uname -s)-$(uname -m)'
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/linux/DarkChess
+  compile-windows-executable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: JackMcKew/pyinstaller-action-windows@main
+        with:
+          spec: extra/DarkChess.spec
+          path: .
+#      - run: sh -c 'ln -v src/dist/DarkChess src/dist/DarkChess-Windows$(wine --get-major-version)-$(uname -m)'
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/windows/DarkChess.exe
