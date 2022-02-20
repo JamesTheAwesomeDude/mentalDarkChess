@@ -12,6 +12,8 @@ def monkey_polyfill(chess):
 		chess.NO_SQUARE = len(chess.SQUARES)
 	if not hasattr(chess, 'UNBLOCKABLE_PIECES'):
 		chess.UNBLOCKABLE_PIECES = {chess.KNIGHT}
+	if not hasattr(chess, 'BB_PAWN_RANK'):
+		chess.BB_PAWN_RANK = [chess.BB_RANK_7, chess.BB_RANK_2]
 	if not hasattr(chess.Move, 'remove'):
 		@classmethod
 		def _move_remove(cls, square):
@@ -89,7 +91,12 @@ class DarkBoard(chess.Board):
 			return chess.SquareSet(chess.BB_EMPTY)
 		bonus_vision = chess.SquareSet()
 		if piece.piece_type == chess.PAWN:
+			# Square in front:
 			bonus_vision.add(chess.square(chess.square_file(square), chess.square_rank(square) + [-1, 1][piece.color]))
+			# 2-move:
+			if square in chess.SquareSet(chess.BB_PAWN_RANK[piece.color]):
+				# Pawn is on its rank, assuming it hasn't moved yet
+				bonus_vision.add(chess.square(chess.square_file(square), chess.square_rank(square) + [-2, 2][piece.color]))
 		return bonus_vision
 	def __repr__(self):
 		# TODO: modify board_fen to include fog
@@ -120,10 +127,10 @@ class DarkBoard(chess.Board):
 				if piece:
 					builder.append(piece.unicode_symbol(invert_color=invert_color))
 				else:
-					if square_index in self.vision:
-						builder.append(empty_square)
-					elif square_index in self.esp_action:
+					if square_index in self.esp_action:
 						builder.append(action_square)
+					elif square_index in self.vision:
+						builder.append(empty_square)
 					elif square_index in self.esp_piece:
 						builder.append(something_square)
 					else:
@@ -146,12 +153,12 @@ class DarkBoard(chess.Board):
 			if piece:
 				builder.append(piece.symbol())
 			else:
-				if square in self.vision:
-					builder.append(".")
-				elif square in self.esp_action:
-					builder.append(",")
-				elif square in self.esp_piece:
+				if square in self.esp_action:
 					builder.append("!")
+				elif square in self.vision:
+					builder.append(".")
+				elif square in self.esp_piece:
+					builder.append("*")
 				else:
 					builder.append("?")
 			if chess.BB_SQUARES[square] & chess.BB_FILE_H:
