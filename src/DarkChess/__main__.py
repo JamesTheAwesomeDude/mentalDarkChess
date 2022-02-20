@@ -52,11 +52,14 @@ def my_turn(conv, board):
 	target_piece = board.piece_at(dest)
 	if target_piece is None:
 		alice.send(chess.NO_SQUARE)
+	elif target_piece.color == board.turn:
+		raise ValueError("Can't capture your own %s piece %s@%s")
 	else:
-		if target_piece.color == board.turn:
-			raise ValueError("Can't capture your own %s piece %s@%s")
+		captured_piece = target_piece
 		alice.send(dest)
 		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
+		if captured_piece.piece_type == chess.KING:
+			return board.turn
 	board.push(move)
 	board.forget_player(board.turn)
 	alice = conv.probe_opponent(board)
@@ -80,6 +83,8 @@ def their_turn(conv, board):
 		captured_piece = board.piece_at(captured_square)
 		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
+		if captured_piece.piece_type == chess.KING:
+			return board.turn
 	board.forget_player(not board.turn)
 	bob = conv.respond_to_probe(board)
 	queries = next(bob)
