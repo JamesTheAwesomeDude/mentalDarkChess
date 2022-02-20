@@ -49,18 +49,17 @@ def my_turn(conv, board):
 	show_board(board)
 	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
 	dest = move.to_square
-	target_piece = board.piece_at(dest)
-	if target_piece is None:
+	captured_piece = board.piece_at(dest)
+	if captured_piece is None:
 		alice.send(chess.NO_SQUARE)
-	elif target_piece.color == board.turn:
+	elif captured_piece.color == board.turn:
 		raise ValueError("Can't capture your own %s piece %s@%s")
 	else:
-		captured_piece = target_piece
+		logging.info("CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[dest])
 		alice.send(dest)
-		logging.info("CAPTURED: %s@%s", target_piece.symbol(), chess.SQUARE_NAMES[dest])
-		if captured_piece.piece_type == chess.KING:
-			return board.turn
 	board.push(move)
+	if captured_piece and captured_piece.piece_type == chess.KING:
+		return not board.turn
 	board.forget_player(board.turn)
 	alice = conv.probe_opponent(board)
 	revealed = next(alice)
@@ -81,16 +80,14 @@ def their_turn(conv, board):
 		board.push(chess.Move.null())
 	else:
 		captured_piece = board.piece_at(captured_square)
-		board.push(chess.Move.remove(captured_square))
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
-		if captured_piece.piece_type == chess.KING:
-			return board.turn
+		board.push(chess.Move.remove(captured_square))
+	if captured_piece and captured_piece.piece_type == chess.KING:
+		return not board.turn
 	board.forget_player(not board.turn)
 	bob = conv.respond_to_probe(board)
 	queries = next(bob)
 	next(bob)
-	if captured_piece and captured_piece.piece_type == chess.KING:
-		return not board.turn
 
 def __entrypoint__():
 	import sys
