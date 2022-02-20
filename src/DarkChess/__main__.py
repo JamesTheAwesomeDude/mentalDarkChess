@@ -35,9 +35,10 @@ def _main(board, color, addr=None):
 		else:
 			winner = their_turn(conv, board)
 	if winner == color:
-		return 0
+		print("WINNER IS YOU")
 	else:
-		return 1
+		print("L O S S")
+	return 0
 
 
 def my_turn(conv, board):
