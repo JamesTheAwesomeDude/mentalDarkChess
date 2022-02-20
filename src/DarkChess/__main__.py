@@ -87,7 +87,7 @@ def their_turn(conv, board):
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 
-if __name__ == '__main__':
+def __entrypoint__():
 	import sys
 	colorstring = environ.get('chesscolor', None)
 	if colorstring is None:
@@ -98,3 +98,6 @@ if __name__ == '__main__':
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
 	sys.exit(_main(board, color))
+
+if __name__ == '__main__':
+	__entrypoint__()

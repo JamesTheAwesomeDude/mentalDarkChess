@@ -4,7 +4,7 @@
 block_cipher = None
 
 
-a = Analysis(['../src/DarkChess/__main__.py'],
+a = Analysis(['../src/DarkChess/__pyinstaller_entrypoint__.py'],
              pathex=[],
              binaries=[],
              datas=[],
