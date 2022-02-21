@@ -23,6 +23,10 @@ class Conversation():
 		self._color = color
 		self._ctx = zmq.Context()
 		self._socket = self._ctx.socket(zmq.PAIR)
+		self._seeds = []
+		self._opponent_seed_commitments = []
+		self._rcvd_queries = []
+		self._fake_pk_gen = None
 		if color == chess.WHITE:
 			if addr is None:
 				# Listen on all interfaces by default
@@ -39,7 +43,9 @@ class Conversation():
 			self._socket.connect(addr)
 		else:
 			raise ValueError(color)
-	def alice_seed(self, turn=None):
+	def get_fake_pubkeys(self, n):
+		return list(islice(self._fake_pk_gen, n))
+	def alice_rotate_seed(self):
 		# Commit to a seed value which
 		# we will use to deterministically
 		# generate random fake publickeys
@@ -49,20 +55,23 @@ class Conversation():
 		a = urandom(16)
 		logging.info('CHOSE SEED HEAD: %s', prettyprint_bytes(a))
 		ha = h(a)
-		logging.info('SEED HEAD COMMITMENT #%s: %s', str(turn) if turn is not None else '?', prettyprint_bytes(ha))
+		logging.info('SEED HEAD COMMITMENT #%u: %s', len(self._seeds)+2, prettyprint_bytes(ha))
 		self._send_seed_head_commitment(ha)
 		b = self._recv_seed_tail()
 		logging.info('GOT SEED TAIL: %s', prettyprint_bytes(b))
 		seed = h(a + b)
+		self._fake_pk_gen = gen_fake_pubkeys(seed)
 		logging.info('SEED: %s', prettyprint_bytes(seed))
+		self._seeds.append(seed)
 		return seed
-	def bob_seed(self, turn=None):
+	def bob_rotate_seed(self):
 		b = urandom(16)
 		logging.info('CHOSE SEED TAIL: %s', prettyprint_bytes(b))
 		self._send_seed_tail(b)
 		ha = self._recv_seed_head_commitment()
-		logging.info('GOT SEED HEAD COMMITMENT #%s: %s', str(turn) if turn is not None else '?', prettyprint_bytes(ha))
-		return b, ha
+		logging.info('GOT SEED HEAD COMMITMENT #%u: %s', len(self._opponent_seed_commitments)+2, prettyprint_bytes(ha))
+		self._opponent_seed_commitments.append((ha, b))
+		return ha, b
 	def _send_seed_tail(self, b):
 		self._socket.send_serialized(b, _serialize)
 	def _recv_seed_tail(self):
@@ -73,9 +82,7 @@ class Conversation():
 	def _recv_seed_head_commitment(self):
 		hseed = self._socket.recv_serialized(_deserialize)
 		return hseed
-	def peek_opponents_pieces(self, board, seed, j=0):
-		fake_pk_gen = gen_fake_pubkeys(seed)
-		consume(fake_pk_gen, j * len(chess.SQUARES))
+	def peek_opponents_pieces(self, board):
 		# Accumulate all the pieces we see
 		# during this round of peeking,
 		# which starts with a blank slate:
@@ -96,7 +103,7 @@ class Conversation():
 			board.vision = board.calc_vision(initial=board.vision, max_vision=max_vision)
 			# Generate 1 fake publickey
 			# for each and every square
-			pkeys = list(islice(fake_pk_gen, len(chess.SQUARES)))
+			pkeys = self.get_fake_pubkeys(len(chess.SQUARES))
 			# But transmit a real publickey INSTEAD,
 			# for each square we are entitled to view
 			skeys = []
@@ -118,18 +125,18 @@ class Conversation():
 				else:
 					piece_map[square] = piece
 				if piece:
-					board.set_piece_at(square, piece, gently=True)
+					board.set_piece_at(square, piece, discreetly=True)
 		logging.info('PEEKED AT: %s', ','.join(chess.SQUARE_NAMES[square] for square in board.vision))
 		return piece_map
 	def _send_peek_query(self, pkeys):
 		self._socket.send_serialized(pkeys, _serialize)
 		return self._socket.recv_serialized(_deserialize)
 	def notify_capture(self, square):
-		self._socket.send_serialized(square, _serialize)
-	def respond_to_peek(self, board, j=0):
+		self._socket.send_json({'captured_square': square})
+	def respond_to_peek(self, board):
 		for i in range(7):
 			pkeys = self._recv_peek_query()
-			logging.debug('GOT QUERY #%i.%u.%u: %s', board.fullmove_number, j, i, ''.join(prettyprint_bytes(pk) for pk in pkeys))
+			logging.debug('GOT QUERY #%i.%u.%u: %s', board.fullmove_number, -(len(self._rcvd_queries) // -len(chess.SQUARES)), i, ''.join(prettyprint_bytes(pk) for pk in pkeys))
 			# Send an encrypted response with
 			# the state of EVERY square we have
 			# a piece on -- we will verify after
@@ -145,6 +152,8 @@ class Conversation():
 					piece_data = b'\x00'
 				encrypted_piece_data = pk_encrypt(pk, piece_data)
 				response_payload.append(encrypted_piece_data)
+			# Log the request for later auditing
+			self._rcvd_queries.append(pkeys)
 			self._respond_peek_query(response_payload)
 	def _recv_peek_query(self):
 		pkeys = self._socket.recv_serialized(_deserialize)
@@ -152,7 +161,7 @@ class Conversation():
 	def _respond_peek_query(self, payload):
 		self._socket.send_serialized(payload, _serialize)
 	def recv_capture_notify(self):
-		square = self._socket.recv_serialized(_deserialize)
+		square = self._socket.recv_json()['captured_square']
 		return square
 
 def get_ip_addresses():

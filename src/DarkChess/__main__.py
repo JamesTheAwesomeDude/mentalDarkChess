@@ -43,8 +43,8 @@ def _main(board, color, addr=None):
 
 def my_turn(conv, board):
 	# Step 1: peek at the pieces we're entitled to see
-	seed = conv.alice_seed(turn=board.fullmove_number)
-	revealed = conv.peek_opponents_pieces(board, seed, 0)
+	conv.alice_rotate_seed()
+	revealed = conv.peek_opponents_pieces(board)
 	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
 	board.vision = board.calc_vision()
 	show_board(board)
@@ -54,7 +54,7 @@ def my_turn(conv, board):
 	captured_piece = board.piece_at(dest)
 	# notify the opponent of any capture
 	if captured_piece is None:
-		conv.notify_capture(chess.NO_SQUARE)
+		conv.notify_capture(None)
 	elif captured_piece.color == board.turn:
 		raise ValueError("Can't capture your own %s piece %s@%s")
 	else:
@@ -65,7 +65,7 @@ def my_turn(conv, board):
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
 	# Step 3: peek again so we can have vision while pondering
-	revealed = conv.peek_opponents_pieces(board, seed, 1)
+	revealed = conv.peek_opponents_pieces(board)
 	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
 	board.vision = board.calc_vision()
 	show_board(board)
@@ -73,12 +73,12 @@ def my_turn(conv, board):
 
 def their_turn(conv, board):
 	# Step 1: opponent peeks at our pieces
-	hseed = conv.bob_seed(turn=board.fullmove_number)
+	conv.bob_rotate_seed()
 	conv.respond_to_peek(board)
 	# Step 2: opponent moves,
 	# notifies us of any captures
 	captured_square = conv.recv_capture_notify()
-	if captured_square == chess.NO_SQUARE:
+	if captured_square is None:
 		captured_piece = None
 		logging.info("NO CAPTURE BY OPPONENT THIS TURN")
 		board.push(chess.Move.null())
@@ -102,7 +102,7 @@ def __entrypoint__():
 		addr = input(f"What PC is White on? [tcp://127.0.0.1:{CHESS_PORT}]\n> ") or None
 	else:
 		addr = None
-	board = DarkBoard(pov=color)
+	board = DarkBoard().get_view(color)
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
