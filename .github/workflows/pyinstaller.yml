@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: sed -e 's/^git+.*egg=\(miniupnpc\).*$/\1/' requirements.txt
+      - run: sed -e 's/^git+.*egg=\(miniupnpc\).*$/\1/' -i requirements.txt
       - uses: JackMcKew/pyinstaller-action-windows@main
         with:
           spec: extra/DarkChess.spec
