@@ -86,6 +86,8 @@ class DarkBoard(chess.Board):
 			return chess.BaseBoard.set_piece_at(self, square, piece)
 		else:
 			return super().set_piece_at(square, piece)
+	def generate_legal_moves(self, from_mask, to_mask):
+		yield from self.generate_pseudo_legal_moves(from_mask, to_mask)
 	def get_view(self, color):
 		if self.fullmove_number != 1:
 			raise NotImplementedError("TODO")

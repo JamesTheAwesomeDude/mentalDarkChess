@@ -24,6 +24,20 @@ def show_board(board, *args, **kwargs):
 		print(str(board))
 
 
+def prompt_user_for_move(board):
+	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+	while move not in board.legal_moves:
+		try:
+			print('MOVE %s NOT LEGAL IN %s' % (repr(move), board.fen()))
+			move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+		except KeyboardInterrupt:
+			# MANUAL OVERRIDE
+			# NOT DOCUMENTED
+			# DO NOT SPEAK OF THIS
+			return move
+	return move
+
+
 def _main(board, color, addr=None):
 	winner = None
 	conv = Conversation(color, addr)
@@ -49,14 +63,15 @@ def my_turn(conv, board):
 	board.vision = board.calc_vision()
 	show_board(board)
 	# Step 2: make a move
-	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+	move = prompt_user_for_move(board=board)
+	# notify the opponent of any capture
 	dest = move.to_square
 	captured_piece = board.piece_at(dest)
-	# notify the opponent of any capture
 	if captured_piece is None:
 		conv.notify_capture(None)
 	elif captured_piece.color == board.turn:
-		raise ValueError("Can't capture your own %s piece %s@%s")
+		_warn(ValueError("Can't capture your own %s piece %s@%s"))
+		conv.notify_capture(None)
 	else:
 		logging.info("CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[dest])
 		conv.notify_capture(dest)
