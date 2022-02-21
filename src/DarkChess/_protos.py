@@ -187,9 +187,14 @@ def port_forward(p, name=None, arg6=None):
 	assert 0 < p < 65536
 	u = miniupnpc.UPnP()
 	try:
-		n = u.discover()
-		if not n:
-			raise TimeoutError
+		try:
+			u.discoverdelay = 15 * (10 ** 3)
+			u.discover()
+		except Exception as e:
+			if e.args in [('Success',)]:
+				logging.warn("WTF: %s", repr(e))
+			else:
+				raise
 		igd = u.selectigd()
 		logging.info("UPnP IGD: %s", igd)
 		q = u.addanyportmapping(0, 'TCP', u.lanaddr, p, name, arg6)
