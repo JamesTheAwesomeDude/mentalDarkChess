@@ -121,7 +121,7 @@ def __entrypoint__():
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
-	sys.exit(_main(board, color))
+	sys.exit(_main(board, color, addr))
 
 if __name__ == '__main__':
 	__entrypoint__()
