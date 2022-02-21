@@ -188,7 +188,6 @@ def port_forward(p, name=None, arg6=None):
 	u = miniupnpc.UPnP()
 	try:
 		try:
-			u.discoverdelay = 15 * (10 ** 3)
 			u.discover()
 		except Exception as e:
 			if e.args in [('Success',)]:
