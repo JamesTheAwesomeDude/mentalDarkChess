@@ -3,11 +3,11 @@ import chess
 import zmq
 from os import urandom
 import socket
-import urllib.request, urllib.error
 from itertools import islice, starmap
 from collections import deque, namedtuple
 #logging.basicConfig(stream=stdout, level=getattr(logging, environ.get('LOGLEVEL', 'INFO')))
 import bencodepy
+import miniupnpc
 
 from ._crypto import h, gen_fake_pubkeys, make_real_keypair, publickey, pk_encrypt, pk_decrypt, prettyprint_bytes
 
@@ -33,8 +33,8 @@ class Conversation():
 				addr = 'tcp://*:%u' % CHESS_PORT
 				# If doing so, inform the user of
 				# the available interfaces for their convenience
-				for ip in get_ip_addresses():
-					print("Listening on:\t%s" % addr.replace('//*', f'//{ip}', 1))
+				for ip, port in get_exposed_ports():
+					print("Listening on:\t%s" % addr.replace(':%u' % CHESS_PORT, ':%u' % port, 1).replace('//*', f'//{ip}', 1))
 			self._socket.bind(addr)
 		elif color == chess.BLACK:
 			if addr is None:
@@ -164,27 +164,42 @@ class Conversation():
 		square = self._socket.recv_json()['captured_square']
 		return square
 
-def get_ip_addresses():
+def get_exposed_ports():
 	ips = set()
 	for host in starmap(t_hostbyname_ex, map(socket.gethostbyname_ex, ['localhost', socket.gethostname()])):
 		for ip in host.addresslist:
-			ips.add(ip)
+			ips.add((ip, CHESS_PORT))
 	for addr in starmap(t_addrinfo, socket.getaddrinfo(socket.gethostname(), 0, 0, socket.SOCK_STREAM, socket.getprotobyname('tcp'))):
 		ip = addr.sockaddr[0]
 		if addr.family == socket.AF_INET6:
 			ip = '[%s]' % ip
-		ips.add(ip)
-	# TODO UPnP TODO #
-	#try:
-	#	r = urllib.request.urlopen('https://ipv4.icanhazip.com/')
-	#	if r.status not in {200, 304}:
-	#		raise urllib.error.HTTPError('HTTP %i' % r.status)
-	#	body = r.read()
-	#	ip = body.decode().strip()
-	#	ips.add(ip)
-	#except urllib.error.HTTPError, ValueError, UnicodeDecodeError:
-	#	pass
+		ips.add((ip, CHESS_PORT))
+	try:
+		logging.log(logging.WARNING - 1, "Opening match to the Internet...")
+		ip, p = port_forward(CHESS_PORT)
+	except (KeyboardInterrupt, TimeoutError, ResourceWarning) as e:
+		logging.log(logging.WARNING - 1, "Match NOT opened to the Internet! (%s)", repr(e))
+	else:
+		ips.add((ip, p))
 	return ips
+
+def port_forward(p, name=None, arg6=None):
+	assert 0 < p < 65536
+	u = miniupnpc.UPnP()
+	try:
+		n = u.discover()
+		if not n:
+			raise TimeoutError
+		igd = u.selectigd()
+		logging.info("UPnP IGD: %s", igd)
+		q = u.addanyportmapping(0, 'TCP', u.lanaddr, p, name, arg6)
+		ip = u.externalipaddress()
+	except Exception as e:
+		if e.args in [('No UPnP device discovered',), ('Miniupnpc Socket error',)]:
+			raise ResourceWarning(e)
+		else:
+			raise
+	return ip, q
 
 def _serialize(m):
 	return [bencodepy.encode(m)]
