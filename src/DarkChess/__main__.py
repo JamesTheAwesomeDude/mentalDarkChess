@@ -25,11 +25,11 @@ def show_board(board, *args, **kwargs):
 
 
 def prompt_user_for_move(board):
-	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n\u0007> '))
 	while move not in board.legal_moves:
 		try:
 			print('MOVE %s NOT LEGAL IN %s' % (repr(move), board.fen()))
-			move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+			move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n\u0007> '))
 		except KeyboardInterrupt:
 			# MANUAL OVERRIDE
 			# NOT DOCUMENTED
