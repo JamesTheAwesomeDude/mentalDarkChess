@@ -8,41 +8,105 @@ def _quantify(iterable, pred=bool):
 def monkey_polyfill(chess):
 	if not hasattr(chess, 'NO_PIECE'):
 		chess.NO_PIECE = -len(chess.PIECE_NAMES)
-	if not hasattr(chess, 'NO_SQUARE'):
-		chess.NO_SQUARE = len(chess.SQUARES)
 	if not hasattr(chess, 'UNBLOCKABLE_PIECES'):
 		chess.UNBLOCKABLE_PIECES = {chess.KNIGHT}
+	if not hasattr(chess, 'BB_PAWN_RANK'):
+		chess.BB_PAWN_RANK = [chess.BB_RANK_7, chess.BB_RANK_2]
 	if not hasattr(chess.Move, 'remove'):
 		@classmethod
-		def _move_remove(cls, square):
-			return cls(square, square, drop=chess.NO_PIECE)
+		def _move_remove(cls, square, **kwargs):
+			return cls(square, square, drop=chess.NO_PIECE, **kwargs)
 		chess.Move.remove = _move_remove
+		@classmethod
+		def _move_from_uci(cls, uci):
+			if uci == "0000":
+				# Null move
+				return cls.null()
+			elif (len(uci) == 4 or (4 <= len(uci) <= 5 and uci[0].lower() == "x")) and "@" == uci[1]:
+				# Drop move, may or may not be an anonymous capture
+				drop = chess.PIECE_SYMBOLS.index(uci[0].lower()) if uci[0].lower() != "x" else chess.NO_PIECE
+				if len(uci) == 5:
+					promotion = chess.PIECE_SYMBOLS.index(uci[4]) if uci[4].lower() != "x" else chess.NO_PIECE
+				else:
+					promotion = None
+				square = chess.SQUARE_NAMES.index(uci[2:4])
+				return cls(square, square, promotion=promotion, drop=drop)
+			elif 4 <= len(uci) <= 5:
+				# Normal move, may or may not be a promotion
+				from_square = chess.SQUARE_NAMES.index(uci[0:2])
+				to_square = chess.SQUARE_NAMES.index(uci[2:4])
+				if len(uci) == 5:
+					promotion = chess.PIECE_SYMBOLS.index(uci[4]) if uci[4].lower() != "x" else chess.NO_PIECE
+				else:
+					promotion = None
+				if from_square == to_square:
+					raise ValueError(f"invalid uci (use 0000 for null moves): {uci!r}")
+				return cls(from_square, to_square, promotion=promotion)
+			else:
+				raise ValueError(f"expected uci string to be of length 4 or 5: {uci!r}")
+		chess.Move.from_uci = _move_from_uci
+		def _move_uci(self):
+			if self.drop:
+				if self.drop == chess.NO_PIECE:
+					return chess.piece_symbol(self.drop) + "@" + chess.SQUARE_NAMES[self.to_square] + (chess.piece_symbol(self.promotion) if self.promotion else "")
+				else:
+					return chess.piece_symbol(self.drop).upper() + "@" + chess.SQUARE_NAMES[self.to_square]
+			elif self.promotion:
+				return chess.SQUARE_NAMES[self.from_square] + chess.SQUARE_NAMES[self.to_square] + chess.piece_symbol(self.promotion)
+			elif self:
+				return chess.SQUARE_NAMES[self.from_square] + chess.SQUARE_NAMES[self.to_square]
+			else:
+				return "0000"
+		chess.Move.uci = _move_uci
+	try:
+		if chess.piece_symbol(chess.NO_PIECE) is None:
+			raise ValueError
+	except (IndexError, ValueError):
+		def _piece_symbol(piece_type):
+			return chess.typing.cast(str, chess.PIECE_SYMBOLS[piece_type] if piece_type != chess.NO_PIECE else "x")
+		chess.piece_symbol = _piece_symbol
+	if True:
+		def _piece_symbol(self):
+			symbol = chess.piece_symbol(self.piece_type)
+			return symbol.upper() if self.color and self.piece_type != chess.NO_PIECE else symbol
+		chess.Piece.symbol = _piece_symbol
 	if not hasattr(chess.Piece, '__invert__'):
 		def _piece_invert(self):
 			return type(self)(self.piece_type, not self.color)
 		chess.Piece.__invert__ = _piece_invert
 
 class DarkBoard(chess.Board):
+	def remove_piece_at(self, square, discreetly=False):
+		if discreetly and type(super()) is chess.Board:
+			return chess.BaseBoard.remove_piece_at(self, square)
+		else:
+			return super().remove_piece_at(square)
+	def set_piece_at(self, square, piece, discreetly=False):
+		if discreetly and type(super()) is chess.Board:
+			return chess.BaseBoard.set_piece_at(self, square, piece)
+		else:
+			return super().set_piece_at(square, piece)
+	def generate_legal_moves(self, from_mask, to_mask):
+		yield from self.generate_pseudo_legal_moves(from_mask, to_mask)
+	def get_view(self, color):
+		if self.fullmove_number != 1:
+			raise NotImplementedError("TODO")
+		if isinstance(self, DarkBoardView):
+			raise NotImplementedError
+		return DarkBoardView(self, pov=color)
+
+class DarkBoardView(DarkBoard):
 	monkey_polyfill(chess)
-	def __init__(self, *args, pov=None, **kwargs):
+	def __init__(self, board, *args, pov=None, **kwargs):
 		if pov is None:
-			_warn(NotImplementedError)
+			raise NotImplementedError
 		super().__init__(*args, **kwargs)
+		board._board_state().restore(self)
 		self.pov = pov
 		self.forget_player(not self.pov)
 		self.vision = self.calc_vision()
 		self.esp_action = chess.SquareSet()
 		self.esp_piece = chess.SquareSet()
-	def remove_piece_at(self, square, gently=False):
-		if gently and type(super()) is chess.Board:
-			return chess.BaseBoard.remove_piece_at(self, square)
-		else:
-			return super().remove_piece_at(square)
-	def set_piece_at(self, square, piece, gently=False):
-		if gently and type(super()) is chess.Board:
-			return chess.BaseBoard.set_piece_at(self, square, piece)
-		else:
-			return super().set_piece_at(square, piece)
 	def forget_player(self, color=None):
 		if color is None:
 			_warn("Guessing which side to forget")
@@ -54,7 +118,7 @@ class DarkBoard(chess.Board):
 		for square in chess.SQUARES:
 			piece = self.piece_at(square)
 			if piece and piece.color == color:
-				self.remove_piece_at(square, gently=True)
+				self.remove_piece_at(square, discreetly=True)
 	def calc_vision(self, *, pov=None, initial=chess.BB_EMPTY, max_vision=inf, self_vision=False):
 		vision = chess.SquareSet(initial)
 		if pov is None:
@@ -89,7 +153,12 @@ class DarkBoard(chess.Board):
 			return chess.SquareSet(chess.BB_EMPTY)
 		bonus_vision = chess.SquareSet()
 		if piece.piece_type == chess.PAWN:
+			# Square in front:
 			bonus_vision.add(chess.square(chess.square_file(square), chess.square_rank(square) + [-1, 1][piece.color]))
+			# 2-move:
+			if square in chess.SquareSet(chess.BB_PAWN_RANK[piece.color]):
+				# Pawn is on its rank, assuming it hasn't moved yet
+				bonus_vision.add(chess.square(chess.square_file(square), chess.square_rank(square) + [-2, 2][piece.color]))
 		return bonus_vision
 	def __repr__(self):
 		# TODO: modify board_fen to include fog
@@ -120,10 +189,10 @@ class DarkBoard(chess.Board):
 				if piece:
 					builder.append(piece.unicode_symbol(invert_color=invert_color))
 				else:
-					if square_index in self.vision:
-						builder.append(empty_square)
-					elif square_index in self.esp_action:
+					if square_index in self.esp_action:
 						builder.append(action_square)
+					elif square_index in self.vision:
+						builder.append(empty_square)
 					elif square_index in self.esp_piece:
 						builder.append(something_square)
 					else:
@@ -146,12 +215,12 @@ class DarkBoard(chess.Board):
 			if piece:
 				builder.append(piece.symbol())
 			else:
-				if square in self.vision:
-					builder.append(".")
-				elif square in self.esp_action:
-					builder.append(",")
-				elif square in self.esp_piece:
+				if square in self.esp_action:
 					builder.append("!")
+				elif square in self.vision:
+					builder.append(".")
+				elif square in self.esp_piece:
+					builder.append("*")
 				else:
 					builder.append("?")
 			if chess.BB_SQUARES[square] & chess.BB_FILE_H:

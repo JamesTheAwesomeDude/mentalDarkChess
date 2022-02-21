@@ -21,7 +21,7 @@ def gen_fake_pubkeys(seed, m=32):
 	aes_key = h(seed)
 	r = RijndaelRng(aes_key)
 	while True:
-		pk = urandom(m)
+		pk = r.randbytes(m)
 		yield pk
 
 def make_real_keypair(m=32):

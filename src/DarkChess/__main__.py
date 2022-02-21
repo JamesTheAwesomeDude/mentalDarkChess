@@ -24,6 +24,24 @@ def show_board(board, *args, **kwargs):
 		print(str(board))
 
 
+def prompt_user_for_move(board):
+	move = chess.Move.null()
+	while move not in board.legal_moves:
+		try:
+			print('MOVE %s NOT LEGAL IN %s' % (repr(move), board.fen()))
+			move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n\u0007> '))
+		except ValueError:
+			print("ERROR PARSING")
+			move = chess.Move.null()
+			continue
+		except KeyboardInterrupt:
+			# MANUAL OVERRIDE
+			# NOT DOCUMENTED
+			# DO NOT SPEAK OF THIS
+			return move
+	return move
+
+
 def _main(board, color, addr=None):
 	winner = None
 	conv = Conversation(color, addr)
@@ -42,40 +60,44 @@ def _main(board, color, addr=None):
 
 
 def my_turn(conv, board):
-	board.forget_player(not board.turn)
-	alice = conv.probe_opponent(board)
-	revealed = next(alice)
+	# Step 1: peek at the pieces we're entitled to see
+	conv.alice_rotate_seed()
+	revealed = conv.peek_opponents_pieces(board)
 	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
 	board.vision = board.calc_vision()
 	show_board(board)
-	move = chess.Move.from_uci(input('MOVE IN UCI FORMAT (e.g. e2e4,f7f5)\n> '))
+	# Step 2: make a move
+	move = prompt_user_for_move(board=board)
+	# notify the opponent of any capture
 	dest = move.to_square
 	captured_piece = board.piece_at(dest)
 	if captured_piece is None:
-		alice.send(chess.NO_SQUARE)
+		conv.notify_capture(None)
 	elif captured_piece.color == board.turn:
-		raise ValueError("Can't capture your own %s piece %s@%s")
+		_warn(ValueError("Can't capture your own %s piece %s@%s"))
+		conv.notify_capture(None)
 	else:
 		logging.info("CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[dest])
-		alice.send(dest)
+		conv.notify_capture(dest)
 	board.push(move)
+	# check if we won
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
-	board.forget_player(board.turn)
-	alice = conv.probe_opponent(board)
-	revealed = next(alice)
+	# Step 3: peek again so we can have vision while pondering
+	revealed = conv.peek_opponents_pieces(board)
 	logging.info('REVEALED: %s', ','.join('%s@%s' % (piece.symbol(), chess.SQUARE_NAMES[square]) for square, piece in revealed.items() if piece))
-	alice.send(chess.NO_SQUARE)
 	board.vision = board.calc_vision()
 	show_board(board)
 
 
 def their_turn(conv, board):
-	board.forget_player(board.turn)
-	bob = conv.respond_to_probe(board)
-	queries = next(bob)
-	captured_square = next(bob)
-	if captured_square == chess.NO_SQUARE:
+	# Step 1: opponent peeks at our pieces
+	conv.bob_rotate_seed()
+	conv.respond_to_peek(board)
+	# Step 2: opponent moves,
+	# notifies us of any captures
+	captured_square = conv.recv_capture_notify()
+	if captured_square is None:
 		captured_piece = None
 		logging.info("NO CAPTURE BY OPPONENT THIS TURN")
 		board.push(chess.Move.null())
@@ -83,12 +105,11 @@ def their_turn(conv, board):
 		captured_piece = board.piece_at(captured_square)
 		logging.info("OPPONENT CAPTURED: %s@%s", captured_piece.symbol(), chess.SQUARE_NAMES[captured_square])
 		board.push(chess.Move.remove(captured_square))
+	# check if we lost
 	if captured_piece and captured_piece.piece_type == chess.KING:
 		return not board.turn
-	board.forget_player(not board.turn)
-	bob = conv.respond_to_probe(board)
-	queries = next(bob)
-	next(bob)
+	# Step 3: opponent peeks after their move before yielding play to us
+	conv.respond_to_peek(board)
 
 def __entrypoint__():
 	import sys
@@ -100,11 +121,11 @@ def __entrypoint__():
 		addr = input(f"What PC is White on? [tcp://127.0.0.1:{CHESS_PORT}]\n> ") or None
 	else:
 		addr = None
-	board = DarkBoard(pov=color)
+	board = DarkBoard().get_view(color)
 	if "lol" in environ:
 		board.remove_piece_at(chess.D2)
 		board.remove_piece_at(chess.E2)
-	sys.exit(_main(board, color))
+	sys.exit(_main(board, color, addr))
 
 if __name__ == '__main__':
 	__entrypoint__()
