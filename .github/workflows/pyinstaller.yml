@@ -26,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: sed -e 'h;s/.*#.*egg=\([^&]*\).*/\1\n/;G;s/^\(.*\)\n\(.*\)\n\(.*@\1[^0-9]*\([^#]*\).*\)/\4\n\1\n\3/;:l;s/^\([^n]*\)_/\1./;tl;s/\(.*\)\n\(.*\)\n\(.*\)/\2==\1/' -i requirements.txt
+      # TODO: ^ convert to Perl
       - uses: JackMcKew/pyinstaller-action-windows@main
         with:
           spec: extra/DarkChess.spec
